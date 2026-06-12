@@ -2,8 +2,8 @@ use crate::storage_claim::apply_media_claim;
 use crate::style::{detail, step};
 use crate::types::{
     BootstrapOptions, BOOTSTRAP_RELEASE_NAMESPACE, FLUENT_BIT_CHART_REF, FLUENT_BIT_NAMESPACE,
-    FLUENT_BIT_RELEASE, VICTORIAMETRICS_CHART_REF, VICTORIAMETRICS_NAMESPACE,
-    VICTORIAMETRICS_RELEASE,
+    FLUENT_BIT_RELEASE, VICTORIALOGS_CHART_REF, VICTORIALOGS_NAMESPACE, VICTORIALOGS_RELEASE,
+    VICTORIAMETRICS_CHART_REF, VICTORIAMETRICS_NAMESPACE, VICTORIAMETRICS_RELEASE,
 };
 use crate::util::{chart_ref, ensure_tool, run_or_print};
 
@@ -110,6 +110,49 @@ pub fn install_victoriametrics(options: &BootstrapOptions) {
                 "deployment/victoriametrics",
                 "-n",
                 VICTORIAMETRICS_NAMESPACE,
+                "--timeout=300s",
+            ],
+            options.install.dry_run,
+            false,
+        );
+    }
+}
+
+pub fn install_victorialogs(options: &BootstrapOptions) {
+    step("VictoriaLogs", "installing log store with Helm");
+    let set_values = indexed_set_values(
+        "networkPolicy.ingressFrom",
+        &["fluent-bit", "grafana", options.install.namespace.as_str()],
+    );
+    install_chart(
+        "victorialogs",
+        VICTORIALOGS_RELEASE,
+        VICTORIALOGS_CHART_REF,
+        VICTORIALOGS_NAMESPACE,
+        &set_values,
+        false,
+        options.install.dry_run,
+    );
+
+    step(
+        "VictoriaLogs Storage",
+        "creating VictoriaLogs media-data PVC",
+    );
+    apply_media_claim(
+        VICTORIALOGS_NAMESPACE,
+        &options.storage,
+        options.install.dry_run,
+    );
+
+    if options.install.wait {
+        run_or_print(
+            "kubectl",
+            &[
+                "rollout",
+                "status",
+                "deployment/victorialogs",
+                "-n",
+                VICTORIALOGS_NAMESPACE,
                 "--timeout=300s",
             ],
             options.install.dry_run,

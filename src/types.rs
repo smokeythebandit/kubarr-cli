@@ -18,6 +18,9 @@ pub const VICTORIAMETRICS_CHART_REF: &str =
     "oci://ghcr.io/smokeythebandit/kubarr-charts/victoriametrics";
 pub const VICTORIAMETRICS_NAMESPACE: &str = "victoriametrics";
 pub const VICTORIAMETRICS_RELEASE: &str = "victoriametrics";
+pub const VICTORIALOGS_CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/victorialogs";
+pub const VICTORIALOGS_NAMESPACE: &str = "victorialogs";
+pub const VICTORIALOGS_RELEASE: &str = "victorialogs";
 
 pub struct InstallOptions {
     pub namespace: String,

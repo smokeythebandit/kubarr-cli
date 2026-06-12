@@ -26,8 +26,7 @@ pub fn print_access_hint(options: &InstallOptions) {
                     None
                 }
             })
-            .map(|ip| ip.trim().to_string())
-            .filter(|ip| !ip.is_empty())
+            .and_then(|ip| select_node_ip(&ip))
             .unwrap_or_else(|| "<node-ip>".to_string());
         println!(
             "    {} {}",
@@ -42,4 +41,14 @@ pub fn print_access_hint(options: &InstallOptions) {
             options.release
         );
     }
+}
+
+fn select_node_ip(value: &str) -> Option<String> {
+    let addresses: Vec<&str> = value.split_whitespace().collect();
+    addresses
+        .iter()
+        .copied()
+        .find(|address| address.parse::<std::net::Ipv4Addr>().is_ok())
+        .or_else(|| addresses.first().copied())
+        .map(str::to_string)
 }
