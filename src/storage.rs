@@ -3,9 +3,10 @@ use std::time::Duration;
 
 use crate::style::{detail, ok, status_label, step, warn, RED};
 use crate::types::{
-    BootstrapOptions, ExternalNfsOptions, StorageModeOption, StorageOptions, MANAGED_NFS_CHART_REF,
+    BootstrapOptions, ExternalNfsOptions, StorageModeOption, StorageOptions,
+    BOOTSTRAP_RELEASE_NAMESPACE, MANAGED_NFS_CHART_REF,
 };
-use crate::util::{ensure_tool, run_or_print};
+use crate::util::{chart_ref, ensure_tool, run_or_print};
 
 pub fn configure_storage(options: &BootstrapOptions) {
     match &options.storage.mode {
@@ -50,7 +51,8 @@ fn perform_storage_install(options: &StorageOptions) {
     }
     detail("release", &options.release);
     detail("namespace", &options.namespace);
-    detail("chart", MANAGED_NFS_CHART_REF);
+    let chart = chart_ref("managed-nfs", MANAGED_NFS_CHART_REF);
+    detail("chart", &chart);
     detail("size", &options.size);
     detail(
         "storage class",
@@ -64,10 +66,13 @@ fn perform_storage_install(options: &StorageOptions) {
         "upgrade".into(),
         "--install".into(),
         options.release.clone(),
-        MANAGED_NFS_CHART_REF.into(),
+        chart,
         "-n".into(),
-        options.namespace.clone(),
-        "--create-namespace".into(),
+        BOOTSTRAP_RELEASE_NAMESPACE.into(),
+        "--set".into(),
+        format!("namespace.name={}", options.namespace),
+        "--set".into(),
+        "namespace.create=true".into(),
         "--set".into(),
         format!("persistence.size={}", options.size),
     ];

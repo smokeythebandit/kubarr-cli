@@ -1,9 +1,9 @@
 use crate::style::{detail, status_label, RED};
 use crate::types::{
-    InstallOptions, APP_NAMESPACE, BACKEND_IMAGE, CHART_REF, DATABASE_NAMESPACE, FRONTEND_IMAGE,
-    IMAGE_TAG,
+    InstallOptions, APP_NAMESPACE, BACKEND_IMAGE, BOOTSTRAP_RELEASE_NAMESPACE, CHART_REF,
+    DATABASE_NAMESPACE, FRONTEND_IMAGE, IMAGE_TAG,
 };
-use crate::util::{ensure_tool, has_help, next_value, parse_port, run_or_print};
+use crate::util::{chart_ref, ensure_tool, has_help, next_value, parse_port, run_or_print};
 
 pub fn install(args: Vec<String>) {
     if has_help(&args) {
@@ -30,18 +30,20 @@ pub fn perform_install(options: &InstallOptions) {
     }
     detail("release", &options.release);
     detail("namespace", &options.namespace);
-    detail("chart", CHART_REF);
+    let chart = chart_ref("kubarr", CHART_REF);
+    detail("chart", &chart);
 
     let mut helm_args = vec![
         "upgrade".to_string(),
         "--install".to_string(),
         options.release.clone(),
-        CHART_REF.to_string(),
+        chart,
         "-n".to_string(),
-        options.namespace.clone(),
-        "--create-namespace".to_string(),
+        BOOTSTRAP_RELEASE_NAMESPACE.to_string(),
         "--set".to_string(),
         format!("namespace.name={}", options.namespace),
+        "--set".to_string(),
+        "namespace.create=true".to_string(),
         "--set".to_string(),
         format!("database.namespace={DATABASE_NAMESPACE}"),
         "--set".to_string(),

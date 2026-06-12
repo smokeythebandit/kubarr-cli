@@ -3,13 +3,21 @@ pub const BACKEND_IMAGE: &str = "ghcr.io/smokeythebandit/kubarr-backend";
 pub const FRONTEND_IMAGE: &str = "ghcr.io/smokeythebandit/kubarr-frontend";
 pub const IMAGE_TAG: &str = "latest";
 pub const APP_NAMESPACE: &str = "kubarr-system";
+pub const BOOTSTRAP_RELEASE_NAMESPACE: &str = "default";
 pub const DATABASE_CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/postgresql";
 pub const DATABASE_NAMESPACE: &str = "kubarr-database";
 pub const DATABASE_RELEASE: &str = "postgresql";
+pub const FLUENT_BIT_CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/fluent-bit";
+pub const FLUENT_BIT_NAMESPACE: &str = "fluent-bit";
+pub const FLUENT_BIT_RELEASE: &str = "fluent-bit";
 pub const MANAGED_NFS_CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/managed-nfs";
 pub const MANAGED_NFS_NAMESPACE: &str = "kubarr-storage";
 pub const MANAGED_NFS_RELEASE: &str = "managed-nfs";
 pub const STORAGE_SECRET_NAME: &str = "kubarr-storage-config";
+pub const VICTORIAMETRICS_CHART_REF: &str =
+    "oci://ghcr.io/smokeythebandit/kubarr-charts/victoriametrics";
+pub const VICTORIAMETRICS_NAMESPACE: &str = "victoriametrics";
+pub const VICTORIAMETRICS_RELEASE: &str = "victoriametrics";
 
 pub struct InstallOptions {
     pub namespace: String,

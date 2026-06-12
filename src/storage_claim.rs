@@ -9,7 +9,7 @@ pub fn apply_media_claim(namespace: &str, storage: &BootstrapStorageOptions, dry
     let (server, path, size) = nfs_target(storage, dry_run);
     let pv_name = format!("kubarr-media-{namespace}");
     let yaml = format!(
-        "apiVersion: v1\nkind: Namespace\nmetadata:\n  name: {namespace}\n---\napiVersion: v1\nkind: PersistentVolume\nmetadata:\n  name: {pv_name}\nspec:\n  capacity:\n    storage: {size}\n  accessModes:\n    - ReadWriteMany\n  persistentVolumeReclaimPolicy: Retain\n  nfs:\n    server: {server}\n    path: {path}\n  claimRef:\n    namespace: {namespace}\n    name: media-data\n---\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: media-data\n  namespace: {namespace}\nspec:\n  volumeName: {pv_name}\n  accessModes:\n    - ReadWriteMany\n  resources:\n    requests:\n      storage: {size}\n"
+        "apiVersion: v1\nkind: PersistentVolume\nmetadata:\n  name: {pv_name}\nspec:\n  capacity:\n    storage: {size}\n  accessModes:\n    - ReadWriteMany\n  persistentVolumeReclaimPolicy: Retain\n  nfs:\n    server: {server}\n    path: {path}\n  claimRef:\n    namespace: {namespace}\n    name: media-data\n---\napiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: media-data\n  namespace: {namespace}\nspec:\n  volumeName: {pv_name}\n  accessModes:\n    - ReadWriteMany\n  resources:\n    requests:\n      storage: {size}\n"
     );
     run_apply(&yaml, dry_run);
 }

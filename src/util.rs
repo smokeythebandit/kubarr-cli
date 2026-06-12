@@ -1,4 +1,5 @@
 use std::env;
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 use crate::style::{status_label, BLUE, CYAN, RED};
@@ -104,6 +105,13 @@ pub fn default_storage_class() -> Option<String> {
     ).and_then(|output| output.lines().next().map(str::to_string))
 }
 
+pub fn chart_ref(chart_name: &str, default_ref: &str) -> String {
+    env::var("KUBARR_CHARTS_DIR")
+        .ok()
+        .map(|dir| Path::new(&dir).join(chart_name).display().to_string())
+        .unwrap_or_else(|| default_ref.to_string())
+}
+
 pub fn run_or_print(command: &str, args: &[&str], dry_run: bool, allow_failure: bool) {
     if dry_run {
         println!(
@@ -120,11 +128,20 @@ pub fn run_or_print(command: &str, args: &[&str], dry_run: bool, allow_failure: 
         command,
         args.join(" ")
     );
-    let status = Command::new(command)
+    let output = Command::new(command)
         .args(args)
-        .status()
+        .output()
         .unwrap_or_else(|e| panic!("failed to run {command}: {e}"));
-    if !status.success() && !allow_failure {
-        std::process::exit(status.code().unwrap_or(1));
+    print_command_output(&output.stdout);
+    print_command_output(&output.stderr);
+    if !output.status.success() && !allow_failure {
+        std::process::exit(output.status.code().unwrap_or(1));
+    }
+}
+
+fn print_command_output(output: &[u8]) {
+    let text = String::from_utf8_lossy(output);
+    for line in text.lines().filter(|line| !line.trim().is_empty()) {
+        println!("      {line}");
     }
 }
