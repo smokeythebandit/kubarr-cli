@@ -51,13 +51,13 @@ pub fn perform_install(options: &InstallOptions) {
         "--set".to_string(),
         format!("backend.image.tag={IMAGE_TAG}"),
         "--set".to_string(),
-        "backend.image.pullPolicy=IfNotPresent".to_string(),
+        "backend.image.pullPolicy=Always".to_string(),
         "--set".to_string(),
         format!("frontend.image.repository={FRONTEND_IMAGE}"),
         "--set".to_string(),
         format!("frontend.image.tag={IMAGE_TAG}"),
         "--set".to_string(),
-        "frontend.image.pullPolicy=IfNotPresent".to_string(),
+        "frontend.image.pullPolicy=Always".to_string(),
     ];
     if let Some(port) = options.frontend_node_port {
         helm_args.extend([
