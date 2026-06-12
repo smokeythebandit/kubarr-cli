@@ -1,0 +1,16 @@
+[package]
+name = "kubarr-cli"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+authors = ["Kubarr Team"]
+description = "Standalone command-line tools for installing and developing Kubarr"
+publish = false
+
+[[bin]]
+name = "kubarr"
+path = "src/main.rs"
+
+[dependencies]
+bcrypt = "0.19"
+dialoguer = "0.12"
