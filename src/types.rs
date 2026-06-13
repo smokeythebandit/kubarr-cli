@@ -1,7 +1,7 @@
 pub const CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/kubarr";
 pub const BACKEND_IMAGE: &str = "ghcr.io/smokeythebandit/kubarr-backend";
 pub const FRONTEND_IMAGE: &str = "ghcr.io/smokeythebandit/kubarr-frontend";
-pub const IMAGE_TAG: &str = "latest";
+pub const IMAGE_TAG: &str = "aa59006";
 pub const APP_NAMESPACE: &str = "kubarr-system";
 pub const BOOTSTRAP_RELEASE_NAMESPACE: &str = "default";
 pub const DATABASE_CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/postgresql";
