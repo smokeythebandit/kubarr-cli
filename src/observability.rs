@@ -39,6 +39,12 @@ pub fn install_fluent_bit(options: &BootstrapOptions) {
         false,
         options.install.dry_run,
     );
+    step("Fluent Bit Storage", "creating Fluent Bit media-data PVC");
+    apply_media_claim(
+        FLUENT_BIT_NAMESPACE,
+        &options.storage,
+        options.install.dry_run,
+    );
     patch_fluent_bit_readiness(options.install.dry_run);
     if options.install.wait {
         run_or_print(
