@@ -13,6 +13,7 @@ mod storage_claim;
 mod storage_secret;
 mod style;
 mod types;
+mod users;
 mod util;
 mod wizard;
 mod wizard_identity;
@@ -26,6 +27,7 @@ use bootstrap::bootstrap;
 use doctor::doctor;
 use install::install;
 use style::{status_label, RED};
+use users::users;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -52,6 +54,7 @@ fn run() -> Result<(), String> {
         "bootstrap" => bootstrap(args.collect()),
         "doctor" => doctor(args.collect()),
         "install" => install(args.collect()),
+        "users" => users(args.collect()),
         other => return Err(format!("unknown command '{other}'. Run 'kubarr help'.")),
     }
 
@@ -60,6 +63,6 @@ fn run() -> Result<(), String> {
 
 fn print_help() {
     println!(
-        "kubarr {VERSION}\n\nUSAGE:\n    kubarr <COMMAND> [OPTIONS]\n\nCOMMANDS:\n    bootstrap   Set up Kubarr from scratch\n    install     Install or upgrade Kubarr with Helm\n    doctor      Check local tools and cluster access\n    version     Print CLI version\n    help        Print this help\n\nRun 'kubarr <COMMAND> --help' for command-specific help."
+        "kubarr {VERSION}\n\nUSAGE:\n    kubarr <COMMAND> [OPTIONS]\n\nCOMMANDS:\n    bootstrap   Set up Kubarr from scratch\n    install     Install or upgrade Kubarr with Helm\n    users       Manage Kubarr users\n    doctor      Check local tools and cluster access\n    version     Print CLI version\n    help        Print this help\n\nRun 'kubarr <COMMAND> --help' for command-specific help."
     );
 }
