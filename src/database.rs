@@ -1,4 +1,3 @@
-use crate::storage_claim::apply_media_claim;
 use crate::style::{detail, step};
 use crate::types::{
     BootstrapOptions, BOOTSTRAP_RELEASE_NAMESPACE, DATABASE_CHART_REF, DATABASE_NAMESPACE,
@@ -30,13 +29,6 @@ pub fn install_database(options: &BootstrapOptions) {
     ];
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
     run_or_print("helm", &refs, options.install.dry_run, false);
-
-    step("Database Storage", "creating PostgreSQL media-data PVC");
-    apply_media_claim(
-        DATABASE_NAMESPACE,
-        &options.storage,
-        options.install.dry_run,
-    );
 
     if options.install.wait {
         run_or_print(

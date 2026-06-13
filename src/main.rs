@@ -9,7 +9,6 @@ mod install;
 mod install_access;
 mod observability;
 mod storage;
-mod storage_claim;
 mod storage_secret;
 mod style;
 mod types;
