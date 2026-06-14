@@ -1,14 +1,16 @@
 use crate::style::{detail, step};
 use crate::types::{
-    BootstrapOptions, BOOTSTRAP_RELEASE_NAMESPACE, FLUENT_BIT_CHART_REF, FLUENT_BIT_NAMESPACE,
-    FLUENT_BIT_RELEASE, VICTORIALOGS_CHART_REF, VICTORIALOGS_NAMESPACE, VICTORIALOGS_RELEASE,
-    VICTORIAMETRICS_CHART_REF, VICTORIAMETRICS_NAMESPACE, VICTORIAMETRICS_RELEASE,
+    BootstrapOptions, StorageModeOption, BOOTSTRAP_RELEASE_NAMESPACE, FLUENT_BIT_CHART_REF,
+    FLUENT_BIT_NAMESPACE, FLUENT_BIT_RELEASE, VICTORIALOGS_CHART_REF, VICTORIALOGS_NAMESPACE,
+    VICTORIALOGS_RELEASE, VICTORIAMETRICS_CHART_REF, VICTORIAMETRICS_NAMESPACE,
+    VICTORIAMETRICS_RELEASE,
 };
 use crate::util::{chart_ref, ensure_tool, run_or_print};
 
 pub fn install_fluent_bit(options: &BootstrapOptions) {
     step("Fluent Bit", "installing log collector with Helm");
-    let allowed_namespaces = indexed_set_values(
+    let mut set_values = storage_set_values(options);
+    set_values.extend(indexed_set_values(
         "fluentbit.allowedNamespaces",
         &[
             "sonarr",
@@ -28,13 +30,13 @@ pub fn install_fluent_bit(options: &BootstrapOptions) {
             "fluent-bit",
             "grafana",
         ],
-    );
+    ));
     install_chart(
         "fluent-bit",
         FLUENT_BIT_RELEASE,
         FLUENT_BIT_CHART_REF,
         FLUENT_BIT_NAMESPACE,
-        &allowed_namespaces,
+        &set_values,
         false,
         options.install.dry_run,
     );
@@ -80,6 +82,7 @@ pub fn install_victoriametrics(options: &BootstrapOptions) {
             options.install.namespace.as_str(),
         ],
     ));
+    set_values.extend(storage_set_values(options));
     install_chart(
         "victoriametrics",
         VICTORIAMETRICS_RELEASE,
@@ -108,10 +111,11 @@ pub fn install_victoriametrics(options: &BootstrapOptions) {
 
 pub fn install_victorialogs(options: &BootstrapOptions) {
     step("VictoriaLogs", "installing log store with Helm");
-    let set_values = indexed_set_values(
+    let mut set_values = indexed_set_values(
         "networkPolicy.ingressFrom",
         &["fluent-bit", "grafana", options.install.namespace.as_str()],
     );
+    set_values.extend(storage_set_values(options));
     install_chart(
         "victorialogs",
         VICTORIALOGS_RELEASE,
@@ -144,6 +148,34 @@ fn indexed_set_values(key: &str, values: &[&str]) -> Vec<(String, String)> {
         .enumerate()
         .map(|(index, value)| (format!("{key}[{index}]"), (*value).to_string()))
         .collect()
+}
+
+fn storage_set_values(options: &BootstrapOptions) -> Vec<(String, String)> {
+    let mut values = vec![
+        (
+            "storage.media.existingClaim".to_string(),
+            "media-data".to_string(),
+        ),
+        ("storage.media.mountPath".to_string(), "/data".to_string()),
+    ];
+
+    match &options.storage.mode {
+        StorageModeOption::ManagedNfs(storage) => {
+            values.push(("storage.media.nfs.size".to_string(), storage.size.clone()));
+        }
+        StorageModeOption::ExternalNfs(storage) => {
+            values.push((
+                "storage.media.nfs.server".to_string(),
+                storage.server.clone(),
+            ));
+            values.push((
+                "storage.media.nfs.path".to_string(),
+                storage.export_path.clone(),
+            ));
+        }
+    }
+
+    values
 }
 
 fn patch_fluent_bit_readiness(dry_run: bool) {

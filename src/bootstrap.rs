@@ -2,7 +2,7 @@ use crate::checks::check_cluster_prerequisites;
 use crate::cluster::setup_cluster_if_needed;
 use crate::database::install_database;
 use crate::db_bootstrap::bootstrap_database;
-use crate::install::perform_install;
+use crate::install::perform_bootstrap_install;
 use crate::install_access::print_access_hint;
 use crate::observability::{install_fluent_bit, install_victorialogs, install_victoriametrics};
 use crate::storage::{configure_storage, write_storage_config};
@@ -53,7 +53,7 @@ pub fn bootstrap(args: Vec<String>) {
     install_victoriametrics(&options);
     install_database(&options);
     step("Install", "installing Kubarr with Helm");
-    perform_install(&options.install);
+    perform_bootstrap_install(&options);
     write_storage_config(&options);
     bootstrap_database(&options);
     print_access_hint(&options.install);

@@ -1,8 +1,12 @@
-pub const CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/kubarr";
-pub const BACKEND_IMAGE: &str = "ghcr.io/smokeythebandit/kubarr-backend";
+pub const BACKEND_CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/kubarr-backend";
+pub const FRONTEND_CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/kubarr-frontend";
+pub const GATEWAY_CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/openresty";
+pub const WORKER_CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/kubarr-worker";
+pub const BACKEND_IMAGE: &str = "ghcr.io/smokeythebandit/kubarr-api";
 pub const FRONTEND_IMAGE: &str = "ghcr.io/smokeythebandit/kubarr-frontend";
+pub const WORKER_IMAGE: &str = "ghcr.io/smokeythebandit/kubarr-worker";
 pub const IMAGE_TAG: &str = "latest";
-pub const APP_NAMESPACE: &str = "kubarr-system";
+pub const APP_NAMESPACE: &str = "kubarr-backend";
 pub const BOOTSTRAP_RELEASE_NAMESPACE: &str = "default";
 pub const DATABASE_CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/postgresql";
 pub const DATABASE_NAMESPACE: &str = "kubarr-database";
