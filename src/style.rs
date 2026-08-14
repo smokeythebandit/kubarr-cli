@@ -1,5 +1,7 @@
 use std::env;
 
+use crate::install_events;
+
 pub const BOLD: &str = "\x1b[1m";
 pub const DIM: &str = "\x1b[2m";
 pub const RED: &str = "\x1b[31m";
@@ -8,40 +10,81 @@ pub const YELLOW: &str = "\x1b[33m";
 pub const BLUE: &str = "\x1b[34m";
 pub const CYAN: &str = "\x1b[36m";
 const RESET: &str = "\x1b[0m";
+const RULE: &str = "+------------------------------------------------------------+";
 
 pub fn print_banner() {
-    println!("{}", paint("Kubarr Bootstrap", BOLD));
+    println!("{}", paint(RULE, CYAN));
     println!(
         "{}",
-        paint("Validate your cluster, then install Kubarr.", DIM)
+        paint(
+            "|                      Kubarr Bootstrap                      |",
+            BOLD
+        )
     );
     println!(
         "{}",
-        paint("------------------------------------------------", DIM)
+        paint(
+            "|        Cluster -> Storage -> Observability -> Apps         |",
+            DIM
+        )
     );
+    println!("{}", paint(RULE, CYAN));
+    println!(
+        "{}",
+        paint(
+            "A guided setup for a clean, Kubernetes-native media stack.",
+            DIM
+        )
+    );
+}
+
+pub fn wizard_section(title: &str, message: &str) {
+    println!();
+    println!("{} {}", paint("::", CYAN), paint(title, BOLD));
+    println!("   {}", paint(message, DIM));
 }
 
 pub fn step(name: &str, message: &str) {
-    println!("\n{} {}", paint("==>", BLUE), paint(name, BOLD));
-    println!("    {}", paint(message, DIM));
+    if install_events::emit(format!(">> {name}\n   {message}")) {
+        return;
+    }
+    println!();
+    println!("{} {}", paint(">>", BLUE), paint(name, BOLD));
+    println!("   {}", paint(message, DIM));
 }
 
 pub fn ok(message: &str) {
-    println!("    {} {message}", status_label("ok", GREEN));
+    if install_events::emit(format!("[OK] {message}")) {
+        return;
+    }
+    println!("   {} {message}", status_label("ok", GREEN));
 }
 
 pub fn warn(message: &str) {
-    println!("    {} {message}", status_label("warn", YELLOW));
+    if install_events::emit(format!("[WARN] {message}")) {
+        return;
+    }
+    println!("   {} {message}", status_label("warn", YELLOW));
 }
 
 pub fn fail(message: &str) {
-    println!("    {} {message}", status_label("fail", RED));
+    if install_events::emit(format!("[FAIL] {message}")) {
+        return;
+    }
+    println!("   {} {message}", status_label("fail", RED));
 }
 
 pub fn detail(label: &str, value: &str) {
+    if install_events::emit(format!("  - {label}: {value}")) {
+        return;
+    }
+    let label = format!("{}:", label).to_lowercase();
+    let padded_label = format!("{label:<18}");
     println!(
-        "    {} {value}",
-        paint(&format!("{label}:").to_lowercase(), CYAN)
+        "   {} {} {}",
+        paint("-", CYAN),
+        paint(&padded_label, CYAN),
+        value
     );
 }
 

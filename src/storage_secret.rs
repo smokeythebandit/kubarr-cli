@@ -1,6 +1,7 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
+use crate::install_events;
 use crate::style::{paint, status_label, BLUE, CYAN, DIM};
 use crate::types::{BootstrapStorageOptions, StorageModeOption, STORAGE_SECRET_NAME};
 
@@ -52,13 +53,27 @@ fn external_json(server: &str, export_path: &str) -> (&'static str, String) {
 
 fn run_kubectl_apply_yaml(yaml: &str, dry_run: bool) {
     if dry_run {
-        println!("    {} kubectl apply -f -", status_label("plan", CYAN));
+        if install_events::emit("[PLAN] kubectl apply -f -") {
+            for line in yaml.lines() {
+                install_events::emit(format!("     {line}"));
+            }
+            return;
+        }
+        println!("   {} kubectl apply -f -", status_label("plan", CYAN));
         for line in yaml.lines() {
-            println!("    {}", paint(line, DIM));
+            println!("   {}", paint(line, DIM));
         }
         return;
     }
-    println!("    {} kubectl apply -f -", status_label("run", BLUE));
+    if install_events::emit("[RUN] kubectl apply -f -") {
+        apply_yaml(yaml);
+        return;
+    }
+    println!("   {} kubectl apply -f -", status_label("run", BLUE));
+    apply_yaml(yaml);
+}
+
+fn apply_yaml(yaml: &str) {
     let mut child = Command::new("kubectl")
         .args(["apply", "-f", "-"])
         .stdin(Stdio::piped())

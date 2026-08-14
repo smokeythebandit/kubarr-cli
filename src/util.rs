@@ -2,6 +2,7 @@ use std::env;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
+use crate::install_events;
 use crate::style::{status_label, BLUE, CYAN, RED};
 
 pub struct PermissionRequirement {
@@ -114,16 +115,31 @@ pub fn chart_ref(chart_name: &str, default_ref: &str) -> String {
 
 pub fn run_or_print(command: &str, args: &[&str], dry_run: bool, allow_failure: bool) {
     if dry_run {
+        if install_events::emit(format!("[PLAN] {} {}", command, args.join(" "))) {
+            return;
+        }
         println!(
-            "    {} {} {}",
+            "   {} {} {}",
             status_label("plan", CYAN),
             command,
             args.join(" ")
         );
         return;
     }
+    if install_events::emit(format!("[RUN] {} {}", command, args.join(" "))) {
+        let output = Command::new(command)
+            .args(args)
+            .output()
+            .unwrap_or_else(|e| panic!("failed to run {command}: {e}"));
+        emit_command_output(&output.stdout);
+        emit_command_output(&output.stderr);
+        if !output.status.success() && !allow_failure {
+            std::process::exit(output.status.code().unwrap_or(1));
+        }
+        return;
+    }
     println!(
-        "    {} {} {}",
+        "   {} {} {}",
         status_label("run", BLUE),
         command,
         args.join(" ")
@@ -139,9 +155,16 @@ pub fn run_or_print(command: &str, args: &[&str], dry_run: bool, allow_failure: 
     }
 }
 
+fn emit_command_output(output: &[u8]) {
+    let text = String::from_utf8_lossy(output);
+    for line in text.lines().filter(|line| !line.trim().is_empty()) {
+        install_events::emit(format!("     {line}"));
+    }
+}
+
 fn print_command_output(output: &[u8]) {
     let text = String::from_utf8_lossy(output);
     for line in text.lines().filter(|line| !line.trim().is_empty()) {
-        println!("      {line}");
+        println!("     {line}");
     }
 }

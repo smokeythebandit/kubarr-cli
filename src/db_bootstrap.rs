@@ -2,6 +2,7 @@ use std::process::Command;
 use std::thread::sleep;
 use std::time::Duration;
 
+use crate::install_events;
 use crate::style::{ok, status_label, step, BLUE, CYAN};
 use crate::types::{AdminUser, BootstrapOptions, StorageModeOption, DATABASE_NAMESPACE};
 
@@ -13,7 +14,7 @@ pub fn bootstrap_database(options: &BootstrapOptions) {
                 "would create storage/admin records directly in PostgreSQL",
             );
             println!(
-                "    {} kubectl exec -n {DATABASE_NAMESPACE} statefulset/kubarr-db -- psql ...",
+                "   {} kubectl exec -n {DATABASE_NAMESPACE} statefulset/kubarr-db -- psql ...",
                 status_label("plan", CYAN)
             );
         }
@@ -77,10 +78,18 @@ fn schema_ready(namespace: &str) -> bool {
 }
 
 fn run_sql(namespace: &str, sql: &str) {
+    if install_events::emit("[RUN] kubectl exec statefulset/kubarr-db -- psql") {
+        run_sql_command(namespace, sql);
+        return;
+    }
     println!(
-        "    {} kubectl exec statefulset/kubarr-db -- psql",
+        "   {} kubectl exec statefulset/kubarr-db -- psql",
         status_label("run", BLUE)
     );
+    run_sql_command(namespace, sql);
+}
+
+fn run_sql_command(namespace: &str, sql: &str) {
     let status = Command::new("kubectl")
         .args([
             "exec",

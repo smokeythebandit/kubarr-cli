@@ -14,6 +14,9 @@ pub const DATABASE_RELEASE: &str = "postgresql";
 pub const FLUENT_BIT_CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/fluent-bit";
 pub const FLUENT_BIT_NAMESPACE: &str = "fluent-bit";
 pub const FLUENT_BIT_RELEASE: &str = "fluent-bit";
+pub const GRAFANA_CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/grafana";
+pub const GRAFANA_NAMESPACE: &str = "grafana";
+pub const GRAFANA_RELEASE: &str = "grafana";
 pub const MANAGED_NFS_CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/managed-nfs";
 pub const MANAGED_NFS_NAMESPACE: &str = "kubarr-storage";
 pub const MANAGED_NFS_RELEASE: &str = "managed-nfs";
@@ -50,6 +53,7 @@ pub struct BootstrapOptions {
     pub storage: BootstrapStorageOptions,
     pub skip_cluster_check: bool,
     pub interactive: bool,
+    pub grafana_enabled: bool,
 }
 
 #[derive(Clone, Copy)]

@@ -1,6 +1,6 @@
 use dialoguer::{theme::ColorfulTheme, Input, Select};
 
-use crate::style::{paint, BOLD};
+use crate::style::wizard_section;
 use crate::types::{ExternalNfsOptions, StorageOptions};
 use crate::util::{command_output, parse_port};
 
@@ -9,8 +9,10 @@ pub fn wizard_theme() -> ColorfulTheme {
 }
 
 pub fn prompt_storage_mode() -> Result<String, String> {
-    println!();
-    println!("{}", paint("Storage is required for Kubarr apps.", BOLD));
+    wizard_section(
+        "Storage",
+        "Choose where Kubarr apps will keep media, configuration, and downloads.",
+    );
     let choices = [
         "Managed NFS - Kubarr deploys an NFS server backed by a PVC",
         "External NFS - Use an existing NFS server/export",
@@ -41,6 +43,10 @@ pub fn prompt_managed_storage(
 }
 
 pub fn prompt_backend_node_port(default: Option<u16>) -> Result<u16, String> {
+    wizard_section(
+        "Network Access",
+        "Pick the backend NodePort used by the dashboard and API.",
+    );
     let value = Input::with_theme(&wizard_theme())
         .with_prompt("Backend NodePort")
         .default(default.unwrap_or(30081).to_string())

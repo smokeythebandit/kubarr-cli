@@ -2,7 +2,7 @@ use std::process::Command;
 
 use dialoguer::Select;
 
-use crate::style::{ok, status_label, step, warn, BLUE, CYAN};
+use crate::style::{ok, status_label, step, warn, wizard_section, BLUE, CYAN};
 use crate::types::{BootstrapOptions, ClusterMode};
 use crate::util::{command_success, ensure_tool, kubectl_cluster_access};
 use crate::wizard_prompts::wizard_theme;
@@ -18,6 +18,10 @@ pub fn parse_cluster_mode(value: &str) -> Result<ClusterMode, String> {
 }
 
 pub fn prompt_cluster_mode() -> Result<ClusterMode, String> {
+    wizard_section(
+        "Cluster",
+        "Choose an existing context or let Kubarr prepare this machine.",
+    );
     let choices = [
         "Use an existing Kubernetes cluster/context",
         "Set up Kubernetes on this system (single-node k3s)",
@@ -52,12 +56,12 @@ fn setup_single_node_cluster(dry_run: bool) {
     let install_command = "curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644";
     if dry_run {
         println!(
-            "    {} sh -c '{}';",
+            "   {} sh -c '{}';",
             status_label("plan", CYAN),
             install_command
         );
         println!(
-            "    {} export KUBECONFIG=/etc/rancher/k3s/k3s.yaml",
+            "   {} export KUBECONFIG=/etc/rancher/k3s/k3s.yaml",
             status_label("plan", CYAN)
         );
         return;
@@ -70,7 +74,7 @@ fn setup_single_node_cluster(dry_run: bool) {
 
     ensure_tool("curl");
     println!(
-        "    {} sh -c '{}'",
+        "   {} sh -c '{}'",
         status_label("run", BLUE),
         install_command
     );

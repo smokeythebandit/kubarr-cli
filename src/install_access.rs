@@ -1,5 +1,6 @@
 use std::process::Command;
 
+use crate::install_events;
 use crate::style::{paint, step, BOLD, GREEN};
 use crate::types::InstallOptions;
 
@@ -28,18 +29,26 @@ pub fn print_access_hint(options: &InstallOptions) {
             })
             .and_then(|ip| select_node_ip(&ip))
             .unwrap_or_else(|| "<node-ip>".to_string());
-        println!(
-            "    {} {}",
-            paint("open:", GREEN),
-            paint(&format!("http://{node_ip}:{port}"), BOLD)
-        );
+        if !install_events::emit(format!("open: http://{node_ip}:{port}")) {
+            println!(
+                "   {} {}",
+                paint("open:", GREEN),
+                paint(&format!("http://{node_ip}:{port}"), BOLD)
+            );
+        }
     } else {
-        println!(
-            "    {} kubectl port-forward -n {} svc/{}-backend 8000:8000",
-            paint("forward:", GREEN),
-            options.namespace,
-            options.release
+        let command = format!(
+            "forward: kubectl port-forward -n {} svc/{}-backend 8000:8000",
+            options.namespace, options.release
         );
+        if !install_events::emit(command) {
+            println!(
+                "   {} kubectl port-forward -n {} svc/{}-backend 8000:8000",
+                paint("forward:", GREEN),
+                options.namespace,
+                options.release
+            );
+        }
     }
 }
 

@@ -1,9 +1,9 @@
 use crate::style::{detail, step};
 use crate::types::{
     BootstrapOptions, StorageModeOption, BOOTSTRAP_RELEASE_NAMESPACE, FLUENT_BIT_CHART_REF,
-    FLUENT_BIT_NAMESPACE, FLUENT_BIT_RELEASE, VICTORIALOGS_CHART_REF, VICTORIALOGS_NAMESPACE,
-    VICTORIALOGS_RELEASE, VICTORIAMETRICS_CHART_REF, VICTORIAMETRICS_NAMESPACE,
-    VICTORIAMETRICS_RELEASE,
+    FLUENT_BIT_NAMESPACE, FLUENT_BIT_RELEASE, GRAFANA_CHART_REF, GRAFANA_NAMESPACE,
+    GRAFANA_RELEASE, VICTORIALOGS_CHART_REF, VICTORIALOGS_NAMESPACE, VICTORIALOGS_RELEASE,
+    VICTORIAMETRICS_CHART_REF, VICTORIAMETRICS_NAMESPACE, VICTORIAMETRICS_RELEASE,
 };
 use crate::util::{chart_ref, ensure_tool, run_or_print};
 
@@ -134,6 +134,34 @@ pub fn install_victorialogs(options: &BootstrapOptions) {
                 "deployment/victorialogs",
                 "-n",
                 VICTORIALOGS_NAMESPACE,
+                "--timeout=300s",
+            ],
+            options.install.dry_run,
+            false,
+        );
+    }
+}
+
+pub fn install_grafana(options: &BootstrapOptions) {
+    step("Grafana", "installing optional dashboards with Helm");
+    install_chart(
+        "grafana",
+        GRAFANA_RELEASE,
+        GRAFANA_CHART_REF,
+        GRAFANA_NAMESPACE,
+        &[],
+        true,
+        options.install.dry_run,
+    );
+    if options.install.wait {
+        run_or_print(
+            "kubectl",
+            &[
+                "rollout",
+                "status",
+                "deployment/grafana",
+                "-n",
+                GRAFANA_NAMESPACE,
                 "--timeout=300s",
             ],
             options.install.dry_run,
