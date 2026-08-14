@@ -5,7 +5,10 @@ use crate::types::{BootstrapOptions, ClusterMode, StorageModeOption};
 use crate::wizard_prompts::wizard_theme;
 
 pub fn confirm_bootstrap_plan(options: &BootstrapOptions) {
-    step("Summary", "review what bootstrap will do");
+    step(
+        "Launch Plan",
+        "review the final bootstrap plan before anything changes",
+    );
     detail("cluster", cluster_label(options.cluster_mode));
     detail("namespace", &options.install.namespace);
     detail("release", &options.install.release);
@@ -20,6 +23,14 @@ pub fn confirm_bootstrap_plan(options: &BootstrapOptions) {
         detail("backend nodeport", &port.to_string());
     }
     storage_summary(options);
+    detail(
+        "grafana",
+        if options.grafana_enabled {
+            "enabled"
+        } else {
+            "skipped"
+        },
+    );
 
     let proceed = Confirm::with_theme(&wizard_theme())
         .with_prompt("Continue with bootstrap?")

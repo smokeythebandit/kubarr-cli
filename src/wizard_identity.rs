@@ -1,9 +1,14 @@
 use dialoguer::{Input, Password};
 
+use crate::style::wizard_section;
 use crate::types::AdminUser;
 use crate::wizard_prompts::wizard_theme;
 
 pub fn prompt_server_name(default: Option<&str>) -> Result<String, String> {
+    wizard_section(
+        "Server Identity",
+        "Name this Kubarr instance so it is recognizable later.",
+    );
     Input::with_theme(&wizard_theme())
         .with_prompt("Server name")
         .default(default.unwrap_or("Kubarr").to_string())
@@ -19,6 +24,10 @@ pub fn prompt_server_name(default: Option<&str>) -> Result<String, String> {
 }
 
 pub fn prompt_admin_user(existing: Option<&AdminUser>) -> Result<AdminUser, String> {
+    wizard_section(
+        "Admin Account",
+        "Create the first administrator for the Kubarr dashboard.",
+    );
     let username = Input::with_theme(&wizard_theme())
         .with_prompt("Admin username")
         .default(

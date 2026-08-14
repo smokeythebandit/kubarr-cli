@@ -22,6 +22,7 @@ pub fn parse_bootstrap_options(args: Vec<String>) -> Result<BootstrapOptions, St
     let mut admin_email = None;
     let mut admin_password = None;
     let mut skip_cluster_check = false;
+    let mut grafana_enabled = false;
 
     let mut iter = args.into_iter();
     while let Some(arg) = iter.next() {
@@ -45,6 +46,7 @@ pub fn parse_bootstrap_options(args: Vec<String>) -> Result<BootstrapOptions, St
             "--storage-class" => managed.storage_class = Some(next_value(&mut iter, &arg)?),
             "--nfs-server" => nfs_server = Some(next_value(&mut iter, &arg)?),
             "--nfs-path" => nfs_path = Some(next_value(&mut iter, &arg)?),
+            "--grafana" => grafana_enabled = true,
             "--skip-cluster-check" => skip_cluster_check = true,
             "--dry-run" => {
                 install.dry_run = true;
@@ -71,6 +73,7 @@ pub fn parse_bootstrap_options(args: Vec<String>) -> Result<BootstrapOptions, St
         storage,
         skip_cluster_check,
         interactive,
+        grafana_enabled,
     })
 }
 

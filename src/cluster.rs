@@ -2,7 +2,7 @@ use std::process::Command;
 
 use dialoguer::Select;
 
-use crate::style::{ok, status_label, step, warn, BLUE, CYAN};
+use crate::style::{ok, status_label, step, warn, wizard_section, BLUE, CYAN};
 use crate::types::{BootstrapOptions, ClusterMode};
 use crate::util::{command_success, ensure_tool, kubectl_cluster_access};
 use crate::wizard_prompts::wizard_theme;
@@ -18,6 +18,10 @@ pub fn parse_cluster_mode(value: &str) -> Result<ClusterMode, String> {
 }
 
 pub fn prompt_cluster_mode() -> Result<ClusterMode, String> {
+    wizard_section(
+        "Cluster",
+        "Choose an existing context or let Kubarr prepare this machine.",
+    );
     let choices = [
         "Use an existing Kubernetes cluster/context",
         "Set up Kubernetes on this system (single-node k3s)",
@@ -52,17 +56,18 @@ fn setup_single_node_cluster(dry_run: bool) {
     let install_command = "curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644";
     if dry_run {
         println!(
-            "    {} sh -c '{}';",
+            "   {} sh -c '{}';",
             status_label("plan", CYAN),
             install_command
         );
         println!(
-            "    {} export KUBECONFIG=/etc/rancher/k3s/k3s.yaml",
+            "   {} export KUBECONFIG=/etc/rancher/k3s/k3s.yaml",
             status_label("plan", CYAN)
         );
         return;
     }
 
+    adopt_k3s_kubeconfig();
     if command_success("kubectl", &["cluster-info"]) {
         ok("Kubernetes API is already reachable; skipping k3s installation");
         return;
@@ -70,7 +75,7 @@ fn setup_single_node_cluster(dry_run: bool) {
 
     ensure_tool("curl");
     println!(
-        "    {} sh -c '{}'",
+        "   {} sh -c '{}'",
         status_label("run", BLUE),
         install_command
     );
@@ -83,7 +88,23 @@ fn setup_single_node_cluster(dry_run: bool) {
     }
 
     if !kubectl_cluster_access() {
-        warn("k3s installed, but kubectl is not using it yet");
-        warn("try: export KUBECONFIG=/etc/rancher/k3s/k3s.yaml");
+        adopt_k3s_kubeconfig();
+        if kubectl_cluster_access() {
+            ok("using k3s kubeconfig at /etc/rancher/k3s/k3s.yaml");
+        } else {
+            warn("k3s installed, but kubectl is not using it yet");
+            warn("try: export KUBECONFIG=/etc/rancher/k3s/k3s.yaml");
+        }
+    }
+}
+
+/// Fresh k3s installs write their kubeconfig to a fixed path that plain
+/// kubectl does not pick up; point this process (and every child kubectl/helm
+/// invocation) at it so cluster checks and installs work without a manual
+/// `export KUBECONFIG=...`.
+fn adopt_k3s_kubeconfig() {
+    const K3S_KUBECONFIG: &str = "/etc/rancher/k3s/k3s.yaml";
+    if std::env::var_os("KUBECONFIG").is_none() && std::path::Path::new(K3S_KUBECONFIG).exists() {
+        std::env::set_var("KUBECONFIG", K3S_KUBECONFIG);
     }
 }
