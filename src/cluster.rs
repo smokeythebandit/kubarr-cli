@@ -67,6 +67,7 @@ fn setup_single_node_cluster(dry_run: bool) {
         return;
     }
 
+    adopt_k3s_kubeconfig();
     if command_success("kubectl", &["cluster-info"]) {
         ok("Kubernetes API is already reachable; skipping k3s installation");
         return;
@@ -87,7 +88,23 @@ fn setup_single_node_cluster(dry_run: bool) {
     }
 
     if !kubectl_cluster_access() {
-        warn("k3s installed, but kubectl is not using it yet");
-        warn("try: export KUBECONFIG=/etc/rancher/k3s/k3s.yaml");
+        adopt_k3s_kubeconfig();
+        if kubectl_cluster_access() {
+            ok("using k3s kubeconfig at /etc/rancher/k3s/k3s.yaml");
+        } else {
+            warn("k3s installed, but kubectl is not using it yet");
+            warn("try: export KUBECONFIG=/etc/rancher/k3s/k3s.yaml");
+        }
+    }
+}
+
+/// Fresh k3s installs write their kubeconfig to a fixed path that plain
+/// kubectl does not pick up; point this process (and every child kubectl/helm
+/// invocation) at it so cluster checks and installs work without a manual
+/// `export KUBECONFIG=...`.
+fn adopt_k3s_kubeconfig() {
+    const K3S_KUBECONFIG: &str = "/etc/rancher/k3s/k3s.yaml";
+    if std::env::var_os("KUBECONFIG").is_none() && std::path::Path::new(K3S_KUBECONFIG).exists() {
+        std::env::set_var("KUBECONFIG", K3S_KUBECONFIG);
     }
 }
