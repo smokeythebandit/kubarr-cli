@@ -151,9 +151,11 @@ fn install_release(
     let chart = chart_ref(chart_name, chart_ref_default);
     detail("chart", &chart);
 
+    // Keep Helm 3's client-side apply and readiness checks explicit under Helm 4.
     let mut helm_args = vec![
         "upgrade".to_string(),
         "--install".to_string(),
+        "--server-side=false".to_string(),
         release.to_string(),
         chart,
         "-n".to_string(),
@@ -173,7 +175,7 @@ fn install_release(
         helm_args.extend(["--values".to_string(), values.clone()]);
     }
     if options.wait {
-        helm_args.push("--wait".to_string());
+        helm_args.push("--wait=legacy".to_string());
     }
 
     let helm_refs: Vec<&str> = helm_args.iter().map(String::as_str).collect();

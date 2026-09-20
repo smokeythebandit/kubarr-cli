@@ -65,6 +65,7 @@ fn perform_storage_install(options: &StorageOptions) {
     let mut args = vec![
         "upgrade".into(),
         "--install".into(),
+        "--server-side=false".into(),
         options.release.clone(),
         chart,
         "-n".into(),
@@ -83,7 +84,7 @@ fn perform_storage_install(options: &StorageOptions) {
         ]);
     }
     if options.wait {
-        args.push("--wait".to_string());
+        args.push("--wait=legacy".to_string());
     }
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
     run_or_print("helm", &refs, options.dry_run, false);

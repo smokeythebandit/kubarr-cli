@@ -18,6 +18,7 @@ pub fn install_database(options: &BootstrapOptions) {
     let mut args = vec![
         "upgrade".to_string(),
         "--install".to_string(),
+        "--server-side=false".to_string(),
         DATABASE_RELEASE.to_string(),
         chart,
         "-n".to_string(),

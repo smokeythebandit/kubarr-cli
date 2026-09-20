@@ -34,6 +34,26 @@ pub fn ensure_tool(tool: &str) {
         );
         std::process::exit(1);
     }
+    if tool == "helm" {
+        let version = command_output("helm", &["version", "--template", "{{.Version}}"]);
+        if version.as_deref().and_then(helm_major_version) != Some(4) {
+            eprintln!(
+                "{} Helm 4 is required (target: 4.3.0); detected {}",
+                status_label("error", RED),
+                version.as_deref().unwrap_or("an unreadable Helm version")
+            );
+            std::process::exit(1);
+        }
+    }
+}
+
+fn helm_major_version(version: &str) -> Option<u64> {
+    let release = version.trim().strip_prefix('v')?.split(['-', '+']).next()?;
+    let mut components = release.split('.');
+    let major = components.next()?.parse().ok()?;
+    components.next()?.parse::<u64>().ok()?;
+    components.next()?.parse::<u64>().ok()?;
+    components.next().is_none().then_some(major)
 }
 
 pub fn command_exists(tool: &str) -> bool {
@@ -166,5 +186,32 @@ fn print_command_output(output: &[u8]) {
     let text = String::from_utf8_lossy(output);
     for line in text.lines().filter(|line| !line.trim().is_empty()) {
         println!("     {line}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn helm_version_parses_stable_prerelease_and_build_metadata() {
+        for version in [
+            "v4.3.0",
+            "v4.0.0-rc.1",
+            "v4.3.0+gabc123",
+            " v4.3.0-rc.1+gabc123\n",
+        ] {
+            assert_eq!(helm_major_version(version), Some(4));
+        }
+    }
+
+    #[test]
+    fn helm_version_rejects_other_majors_and_malformed_output() {
+        for version in ["v3.19.0+gabc123", "v5.0.0", "v40.3.0"] {
+            assert_ne!(helm_major_version(version), Some(4));
+        }
+        for version in ["", "4.3.0", "v4", "v4.3", "v4.x.0", "v4.3.0.1", "not helm"] {
+            assert_eq!(helm_major_version(version), None);
+        }
     }
 }

@@ -52,10 +52,12 @@ pub fn bootstrap(args: Vec<String>) {
 }
 
 pub fn run_bootstrap_install(options: &BootstrapOptions) {
+    if !options.install.dry_run {
+        ensure_tool("helm");
+    }
     setup_cluster_if_needed(options);
     if !options.install.dry_run {
         ensure_tool("kubectl");
-        ensure_tool("helm");
         if !options.skip_cluster_check && !check_cluster_prerequisites(options) {
             eprintln!(
                 "\n{} Bootstrap stopped because required cluster checks failed.",

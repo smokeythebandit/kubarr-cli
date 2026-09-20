@@ -243,6 +243,7 @@ fn install_chart(
     let mut args = vec![
         "upgrade".to_string(),
         "--install".to_string(),
+        "--server-side=false".to_string(),
         release.to_string(),
         chart,
         "-n".to_string(),
@@ -256,7 +257,7 @@ fn install_chart(
         args.extend(["--set".to_string(), format!("{}={}", key, value)]);
     }
     if wait {
-        args.push("--wait".to_string());
+        args.push("--wait=legacy".to_string());
     }
 
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
