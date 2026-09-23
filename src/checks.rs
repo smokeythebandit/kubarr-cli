@@ -3,7 +3,7 @@ use crate::style::{detail, fail, ok, step, warn};
 use crate::types::{BootstrapOptions, StorageModeOption};
 use crate::util::{
     api_resource_available, can_i, command_output, command_success, default_storage_class,
-    kubectl_cluster_access, ready_node_count,
+    kubectl_cluster_access, kubectl_server_git_version, ready_node_count,
 };
 
 pub fn check_cluster_prerequisites(options: &BootstrapOptions) -> bool {
@@ -34,15 +34,10 @@ pub fn check_cluster_prerequisites(options: &BootstrapOptions) -> bool {
 }
 
 fn report_server_version() {
-    if let Some(version) = command_output("kubectl", &["version", "--output=yaml"]) {
-        if let Some(line) = version
-            .lines()
-            .find(|line| line.trim_start().starts_with("gitVersion:"))
-        {
-            ok(&format!("server {}", line.trim()));
-        } else {
-            ok("server version detected");
-        }
+    if let Some(version) = command_output("kubectl", &["version", "-o", "json"])
+        .and_then(|output| kubectl_server_git_version(&output))
+    {
+        ok(&format!("server gitVersion {version}"));
     } else {
         warn("could not read server version");
     }

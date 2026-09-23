@@ -87,6 +87,16 @@ pub fn kubectl_cluster_access() -> bool {
     command_success("kubectl", &["cluster-info"])
 }
 
+pub fn kubectl_server_git_version(output: &str) -> Option<String> {
+    let version: serde_json::Value = serde_json::from_str(output).ok()?;
+    version
+        .get("serverVersion")?
+        .get("gitVersion")?
+        .as_str()
+        .filter(|version| !version.is_empty())
+        .map(str::to_string)
+}
+
 pub fn ready_node_count() -> Option<usize> {
     command_output("kubectl", &["get", "nodes", "--no-headers"]).map(|nodes| {
         nodes
@@ -212,6 +222,32 @@ mod tests {
         }
         for version in ["", "4.3.0", "v4", "v4.3", "v4.x.0", "v4.3.0.1", "not helm"] {
             assert_eq!(helm_major_version(version), None);
+        }
+    }
+
+    #[test]
+    fn kubectl_server_version_uses_server_instead_of_client_version() {
+        let output = r#"{
+            "clientVersion": {"gitVersion": "v1.36.4"},
+            "serverVersion": {"gitVersion": "v1.35.8"}
+        }"#;
+
+        assert_eq!(
+            kubectl_server_git_version(output).as_deref(),
+            Some("v1.35.8")
+        );
+    }
+
+    #[test]
+    fn kubectl_server_version_rejects_missing_or_malformed_output() {
+        for output in [
+            r#"{"clientVersion":{"gitVersion":"v1.36.4"}}"#,
+            r#"{"serverVersion":{}}"#,
+            r#"{"serverVersion":{"gitVersion":42}}"#,
+            r#"{"serverVersion":{"gitVersion":""}}"#,
+            "not json",
+        ] {
+            assert_eq!(kubectl_server_git_version(output), None);
         }
     }
 }
