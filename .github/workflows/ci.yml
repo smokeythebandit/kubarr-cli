@@ -1,0 +1,154 @@
+name: CLI CI/CD
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cli-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+jobs:
+  test:
+    name: Rust and browser tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '26'
+      - run: cargo test --locked --bin kubarr
+      - run: node --test src/bootstrap_web.test.mjs
+
+  build:
+    name: Linux / ${{ matrix.arch }}
+    needs: test
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      - name: Build release CLI
+        env:
+          TARGET: ${{ matrix.target }}
+        run: cargo build --locked --release --target "$TARGET"
+      - name: Verify version and web-only installer
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          binary="target/${TARGET}/release/kubarr"
+          version="$("$binary" --version)"
+          if [[ "$GITHUB_REF" == refs/tags/v* && "$version" != "kubarr ${GITHUB_REF_NAME#v}" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match embedded version: $version" >&2
+            exit 1
+          fi
+          bootstrap_help="$("$binary" bootstrap --web --help)"
+          if [[ "$bootstrap_help" != *"--web-port"* || "$bootstrap_help" == *"--cluster-mode"* ]]; then
+            echo "The CLI must contain the web-only bootstrap installer." >&2
+            exit 1
+          fi
+          if "$binary" install --help >/dev/null 2>&1; then
+            echo "The CLI still includes the legacy install command." >&2
+            exit 1
+          fi
+      - name: Package binary and checksum
+        env:
+          ARCH: ${{ matrix.arch }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          mkdir release-assets
+          asset="release-assets/kubarr-linux-${ARCH}.tar.gz"
+          tar -C "target/${TARGET}/release" -czf "$asset" kubarr
+          sha256sum "$asset" | cut -d ' ' -f 1 > "$asset.sha256"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: kubarr-cli-${{ matrix.arch }}
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 3
+
+  publish:
+    name: Publish CLI release
+    needs: build
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          pattern: kubarr-cli-*
+          path: release-assets
+          merge-multiple: true
+      - name: Publish CLI release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for arch in x86_64 aarch64; do
+            asset="release-assets/kubarr-linux-${arch}.tar.gz"
+            test -s "$asset"
+            expected_hash="$(<"$asset.sha256")"
+            [[ "$expected_hash" =~ ^[[:xdigit:]]{64}$ ]]
+            printf '%s  %s\n' "$expected_hash" "$asset" | sha256sum --check --status
+          done
+
+          latest=true
+          release_flags=()
+          if [[ "$GITHUB_REF" == refs/heads/main ]]; then
+            tag="cli-${GITHUB_SHA}"
+            notes="Linux CLI snapshot used by https://kubarr.com/install.sh. Built from commit ${GITHUB_SHA} by ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}."
+            release_flags+=(--target "$GITHUB_SHA" --title "Kubarr CLI (${GITHUB_SHA:0:7})" --notes "$notes")
+          else
+            tag="$GITHUB_REF_NAME"
+            release_flags+=(--verify-tag --title "Kubarr CLI ${tag}" --generate-notes)
+            if [[ "$tag" == *-* ]]; then
+              latest=false
+              release_flags+=(--prerelease)
+            fi
+          fi
+
+          if draft="$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft' 2>/dev/null)"; then
+            if [[ "$draft" == false ]]; then
+              published_assets="$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
+              for asset in release-assets/*; do
+                if ! grep -Fxq "${asset##*/}" <<< "$published_assets"; then
+                  echo "Published release $tag is missing ${asset##*/}; publish a new ref instead." >&2
+                  exit 1
+                fi
+              done
+              echo "CLI assets are already published for $tag."
+              exit 0
+            fi
+          else
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
+              --draft --latest=false "${release_flags[@]}"
+          fi
+          gh release upload "$tag" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest="$latest"

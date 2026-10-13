@@ -1,10 +1,12 @@
 [package]
 name = "kubarr-cli"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 rust-version = "1.88"
 authors = ["Kubarr Team"]
 description = "Standalone command-line tools for installing and developing Kubarr"
+repository = "https://github.com/smokeythebandit/kubarr-cli"
+license = "MIT"
 publish = false
 
 [[bin]]

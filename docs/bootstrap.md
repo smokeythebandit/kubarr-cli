@@ -74,19 +74,19 @@ The printed invitation contains a bearer token. Redeeming it creates the browser
 To run the browser wizard's Node.js tests (without starting an installer or contacting a cluster):
 
 ```sh
-node --test code/cli/src/bootstrap_web.test.mjs
+node --test src/bootstrap_web.test.mjs
 ```
 
 ## CLI builds and releases
 
-The Kubarr repository's normal CI/CD pipeline builds the CLI alongside the application. `.github/workflows/build.yml` builds native Linux x86_64 and ARM64 release binaries, checks that bootstrap supports the web wizard and the legacy install command is absent, and packages each binary with a SHA-256 checksum.
+The standalone `kubarr-cli` repository owns CLI testing, versioning, builds, and releases. `.github/workflows/ci.yml` runs the Rust and browser-wizard tests, builds native Linux x86_64 and ARM64 release binaries, verifies the embedded version for version tags, and packages each binary with a SHA-256 checksum.
 
-After the normal CI gates pass, `.github/workflows/publish.yml` publishes these artifacts to this repository's GitHub Releases:
+After the tests and builds pass, the same workflow publishes the artifacts to this repository's GitHub Releases:
 
-- Successful `main` builds publish a commit-specific `cli-<commit>` snapshot as the [latest release](https://github.com/smokeythebandit/Kubarr/releases/latest), used by `https://kubarr.com/install.sh`.
-- `v*` tags attach the CLI archives and checksums to the matching versioned release after release E2E and acceptance tests pass.
+- Successful `main` builds publish a commit-specific `cli-<commit>` snapshot as the [latest release](https://github.com/smokeythebandit/kubarr-cli/releases/latest), used by `https://kubarr.com/install.sh`.
+- `v*` tags attach the CLI archives and checksums to the matching versioned release. The tag must match the package version in `Cargo.toml`.
 - Pull requests build the CLI without publishing it.
 
-The assets are `kubarr-linux-x86_64.tar.gz` and `kubarr-linux-aarch64.tar.gz`, each with a matching `.sha256` file. The website hosts the installer script and downloads these Kubarr-owned assets. CLI updates are published by pushing to Kubarr's `main`; a separate website build is only needed when changing the download script itself.
+The assets are `kubarr-linux-x86_64.tar.gz` and `kubarr-linux-aarch64.tar.gz`, each with a matching `.sha256` file. The website hosts the installer script and downloads these CLI-owned assets. CLI updates are published by pushing to this repository's `main`; a website build is only needed when changing the download script itself. The Kubarr application repository pins a CLI revision for its own E2E and acceptance tests.
 
 Kubarr uses immutable GitHub releases. The publish job creates a draft, uploads both archives and checksums, and only then publishes it. Retrying a completed release leaves its existing assets intact. Version-tag prereleases do not replace the installer's latest-release download.

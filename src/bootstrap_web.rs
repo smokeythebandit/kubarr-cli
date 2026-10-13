@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::env;
 use std::net::{Ipv4Addr, SocketAddr};
+use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
@@ -24,6 +25,7 @@ use crate::install_access::{
 use crate::install_events;
 use crate::loadbalancer_probe;
 use crate::storage_probe::{self, Input};
+use crate::style::{terminal_paint, BOLD, CYAN, DIM, GREEN, YELLOW};
 use crate::targets::{Choice, Registry, MAX_CONFIG};
 use crate::types::{
     AdminUser, BootstrapOptions, BootstrapStorageOptions, ClusterMode, ExternalNfsOptions,
@@ -1623,6 +1625,96 @@ fn launch_browser(
     Ok(())
 }
 
+fn print_welcome(
+    mode: Environment,
+    bind: Ipv4Addr,
+    port: u16,
+    hosts: &[String],
+    invite: &str,
+    diagnostic_path: &Path,
+) {
+    let rule = "─".repeat(54);
+    let edge = terminal_paint("│", CYAN);
+    println!("\n  {}", terminal_paint(&format!("╭{rule}╮"), CYAN));
+    println!(
+        "  {edge}{}{edge}",
+        terminal_paint(&format!("  {:<50}  ", "K U B A R R"), BOLD)
+    );
+    println!(
+        "  {edge}{}{edge}",
+        terminal_paint(
+            &format!("  {:<50}  ", format!("Web setup · v{}", crate::VERSION)),
+            DIM
+        )
+    );
+    println!("  {}\n", terminal_paint(&format!("╰{rule}╯"), CYAN));
+    println!(
+        "  {}  {}",
+        terminal_paint("●", GREEN),
+        terminal_paint("Setup wizard ready", BOLD)
+    );
+    println!(
+        "     {}",
+        terminal_paint(&format!("Listening on {bind}:{port}"), DIM)
+    );
+    if mode == Environment::Desktop {
+        println!("     Opening your browser…");
+    }
+    println!("\n  {}", terminal_paint("OPEN IN YOUR BROWSER", BOLD));
+    for host in hosts {
+        // Leave whitespace after the complete URL for terminal links and log consumers.
+        let url = format!("http://{}/#{invite} ", authority(host, port));
+        println!("  {}", terminal_paint(&url, CYAN));
+    }
+    if mode == Environment::Ssh {
+        println!(
+            "\n  {}",
+            terminal_paint("REMOTE ACCESS · unencrypted HTTP", YELLOW)
+        );
+        println!("  Listening on all interfaces. Use a trusted network or an SSH tunnel.");
+        println!("  HTTP traffic can expose the admin password and session.");
+        println!(
+            "  {}",
+            terminal_paint(
+                &format!("ssh -L {port}:127.0.0.1:{port} <user>@<server>"),
+                CYAN
+            )
+        );
+        println!("  Then open the 127.0.0.1 link above on your computer.");
+        println!(
+            "  {}",
+            terminal_paint("Other addresses depend on routing and firewall access.", DIM)
+        );
+    }
+    println!("\n  {}", terminal_paint("NEXT", BOLD));
+    println!("  Finish setup in your browser. Keep this terminal open.");
+    println!(
+        "  {}",
+        terminal_paint("Ctrl+C exits after any running installation finishes.", DIM)
+    );
+    println!(
+        "\n  {}",
+        terminal_paint("DIAGNOSTICS · private local log", DIM)
+    );
+    println!(
+        "  {}",
+        terminal_paint(&diagnostic_path.display().to_string(), DIM)
+    );
+    println!(
+        "  {}",
+        terminal_paint("Permissions 0600 · Max 1 MiB · May contain secrets.", DIM)
+    );
+    println!(
+        "  {}\n",
+        terminal_paint("Inspect locally and remove when finished.", DIM)
+    );
+}
+
+fn report_browser_failure(err: String) {
+    eprintln!("  {} {err}", terminal_paint("!", YELLOW));
+    eprintln!("    Open the link above manually.");
+}
+
 pub fn run_web(port: u16) -> Result<(), String> {
     let mode = detect_environment();
     let bind = if mode == Environment::Ssh {
@@ -1662,23 +1754,13 @@ pub fn run_web(port: u16) -> Result<(), String> {
          loadbalancer: Arc::new(Mutex::new(LoadBalancerState::default())),
          loadbalancer_runner: loadbalancer_probe::run,
          access_reader: install_access::refresh_loadbalancer };
-        println!("Kubarr bootstrap wizard listening on {bind}:{port}");
-        for host in &hosts {
-            println!("  http://{}/#{}", authority(host, port), invite);
-        }
-        if mode == Environment::Ssh {
-            println!("Remote wizard uses plain HTTP on all interfaces. Anyone who can observe HTTP traffic can read the admin password and session. Use a trusted network, or SSH-forward: ssh -L {port}:127.0.0.1:{port} <user>@<server> and open the printed 127.0.0.1 URL locally.");
-            println!("Addresses are candidates; routing and firewall rules may prevent access.");
-        } else if mode == Environment::Desktop {
+        print_welcome(mode, bind, port, &hosts, &invite, &diagnostic_path);
+        if mode == Environment::Desktop {
             let url = format!("http://127.0.0.1:{port}/#{invite}");
-            if let Err(err) = launch_browser("xdg-open", &url, |err| {
-                eprintln!("{err}; open the printed URL manually.");
-            }) {
-                eprintln!("{err}; open the printed URL manually.");
+            if let Err(err) = launch_browser("xdg-open", &url, report_browser_failure) {
+                report_browser_failure(err);
             }
         }
-        println!("Private failure diagnostics: {} (mode 0600, capped at 1 MiB). This local file may contain secrets from Helm, kubectl, or k3s; inspect it only on this host and remove it when finished.", diagnostic_path.display());
-        println!("Keep this CLI running during installation; Ctrl-C exits after any running install finishes.");
         let server = axum::serve(listener, router(app.clone()));
         server.with_graceful_shutdown(graceful_shutdown(app, async {
             let _ = tokio::signal::ctrl_c().await;

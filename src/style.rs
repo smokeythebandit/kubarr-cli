@@ -1,4 +1,5 @@
 use std::env;
+use std::io::{self, IsTerminal};
 
 use crate::install_events;
 
@@ -61,6 +62,14 @@ pub fn detail(label: &str, value: &str) {
 pub fn paint(value: &str, style: &str) -> String {
     if env::var_os("NO_COLOR").is_none() {
         format!("{style}{value}{RESET}")
+    } else {
+        value.to_string()
+    }
+}
+
+pub fn terminal_paint(value: &str, style: &str) -> String {
+    if io::stdout().is_terminal() && env::var("TERM").as_deref() != Ok("dumb") {
+        paint(value, style)
     } else {
         value.to_string()
     }
