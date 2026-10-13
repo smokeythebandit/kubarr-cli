@@ -33,6 +33,8 @@ kubarr --version
 
 The CLI is a self-contained Rust crate. The browser UI is embedded from `src/bootstrap_web.html`; there is no separate frontend build.
 
+Use Node.js 26 for the browser-wizard tests; `.nvmrc` records the same major version used by CI.
+
 ```sh
 cargo build --locked
 cargo test --locked --bin kubarr
