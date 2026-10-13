@@ -2688,7 +2688,9 @@ mod tests {
     ) {
         if ESCAPE_RUNS.fetch_add(1, Ordering::SeqCst) == 0 {
             let path = ESCAPED_PID_PATH.get().unwrap().lock().unwrap().clone();
-            let script = "/usr/bin/setsid /bin/sh -c 'printf %s \"$$\" > \"$1\"; exec sleep 20' helper \"$1\" & printf 'direct child exited\\n'; exit 0";
+            // Wait until the helper has escaped the process group before the
+            // direct child exits; otherwise cleanup can kill it before setsid runs.
+            let script = "/usr/bin/setsid /bin/sh -c 'printf %s \"$$\" > \"$1\"; exec sleep 20' helper \"$1\" & while [ ! -s \"$1\" ]; do sleep 0.01; done; printf 'direct child exited\\n'; exit 0";
             publish(0, "running", "Checking…");
             let _ = checks::probe(
                 "/bin/sh",
