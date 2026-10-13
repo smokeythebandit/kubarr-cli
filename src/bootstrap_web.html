@@ -1,0 +1,1036 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Set up Kubarr</title>
+<style>
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  color-scheme: light;
+  --page: #f9fafb;
+  --surface: #fff;
+  --text: #111827;
+  --muted: #4b5563;
+  --border: #e5e7eb;
+  --input-border: #d1d5db;
+  --soft: #f3f4f6;
+  --hover: #f3f4f6;
+  --blue: #2563eb;
+  --blue-hover: #1d4ed8;
+  --blue-soft: #eff6ff;
+  --blue-text: #1d4ed8;
+  --warning-bg: #fffbeb;
+  --warning-border: #fcd34d;
+  --warning-text: #92400e;
+  --error: #b91c1c;
+  --error-bg: #fef2f2;
+}
+:root.dark {
+  color-scheme: dark;
+  --page: #111827;
+  --surface: #1f2937;
+  --text: #fff;
+  --muted: #9ca3af;
+  --border: #374151;
+  --input-border: #4b5563;
+  --soft: #374151;
+  --hover: #374151;
+  --blue: #2563eb;
+  --blue-hover: #1d4ed8;
+  --blue-soft: #1e3a8a;
+  --blue-text: #93c5fd;
+  --warning-bg: #451a03;
+  --warning-border: #92400e;
+  --warning-text: #fcd34d;
+  --error: #fca5a5;
+  --error-bg: #450a0a;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--page); color: var(--text); }
+button, input, select { font: inherit; }
+button { cursor: pointer; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+.hidden { display: none !important; }
+.shell { max-width: 1160px; margin: auto; padding: 0 24px 64px; }
+.topline { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 64px; margin-bottom: 32px; border-bottom: 1px solid var(--border); }
+.brand { display: flex; align-items: center; gap: 8px; font-size: 1.25rem; font-weight: 700; }
+.brand-mark { display: inline-flex; color: #3b82f6; }
+.brand-mark svg { width: 28px; height: 28px; }
+.topline-right { display: flex; align-items: center; gap: 16px; }
+.topline small { color: var(--muted); font-size: .875rem; }
+.theme-control { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .875rem; }
+.theme-control select { padding: 5px 26px 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); }
+.layout { display: grid; grid-template-columns: 225px minmax(0, 1fr); gap: 32px; align-items: start; }
+.sidebar { position: sticky; top: 24px; }
+.sidebar h2 { margin: 8px 0; font-size: 1.125rem; }
+.sidebar p, .muted, .hint { color: var(--muted); }
+.sidebar p { margin: 0 0 24px; font-size: .875rem; }
+.eyebrow { color: var(--blue-text); font-size: .875rem; font-weight: 600; }
+.steps { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.steps button { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--muted); text-align: left; font-size: .875rem; }
+.steps button:not(:disabled):hover { background: var(--hover); color: var(--text); }
+.steps button[aria-current=step] { background: var(--blue-soft); color: var(--blue-text); font-weight: 600; }
+.steps button[aria-current=step]:disabled { opacity: 1; }
+.step-number { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 50%; font-size: .75rem; }
+.steps button[aria-current=step] .step-number { border-color: var(--blue); background: var(--blue); color: #fff; }
+.content { min-width: 0; }
+.panel { overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: 0 1px 3px #0000000d; }
+.panel-body { padding: 32px; }
+h1 { margin: 8px 0 8px; font-size: clamp(1.5rem, 3vw, 1.875rem); line-height: 1.25; }
+h1:focus { outline: none; }
+.lead { margin: 0 0 28px; color: var(--muted); }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.card { padding: 18px; border: 1px solid var(--border); border-radius: 8px; }
+.card svg { display: block; width: 22px; height: 22px; margin-bottom: 12px; color: #3b82f6; }
+.card strong { display: block; font-size: .9375rem; }
+.card p { margin: 6px 0 0; color: var(--muted); font-size: .875rem; }
+.divider { height: 1px; margin: 28px 0; border: 0; background: var(--border); }
+.section-label { margin: 22px 0 12px; font-size: .875rem; font-weight: 600; }
+.muted, .hint { font-size: .875rem; }
+.checks { overflow: hidden; border: 1px solid var(--border); border-radius: 8px; }
+.check { display: flex; justify-content: space-between; gap: 16px; padding: 10px 14px; font-size: .875rem; }
+.check + .check { border-top: 1px solid var(--border); }
+.check strong { text-align: right; font-weight: 500; overflow-wrap: anywhere; }
+.check-card { margin-top: 18px; padding: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); box-shadow: 0 4px 18px #0000000a; }
+.check-header { display: flex; align-items: center; gap: 14px; }
+.check-ring { display: grid; place-items: center; flex: none; width: 46px; height: 46px; border: 3px solid var(--border); border-radius: 50%; color: var(--blue-text); font-weight: 700; }
+.check-ring.running { border-color: var(--blue); border-right-color: var(--border); animation: ring-turn 1.4s linear infinite; }
+.check-ring.warning, .check-ring.failed { border-color: var(--warning-border); color: var(--warning-text); }
+.check-header h2 { margin: 0; font-size: 1rem; overflow-wrap: anywhere; }
+.check-header p { margin: 2px 0 0; color: var(--muted); font-size: .875rem; }
+.check-track { height: 6px; margin: 16px 0; overflow: hidden; border-radius: 6px; background: var(--soft); }
+.check-track span { display: block; height: 100%; background: var(--blue); transition: width .35s ease; }
+.check-row { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); font-size: .875rem; }
+.check-icon { display: grid; place-items: center; flex: none; width: 23px; height: 23px; border: 2px solid var(--border); border-radius: 50%; color: var(--muted); font-size: .75rem; font-weight: 700; }
+.check-row.running .check-icon { border-color: var(--blue); border-right-color: transparent; color: transparent; animation: ring-turn .8s linear infinite; }
+.check-row.passed .check-icon { border-color: var(--blue); background: var(--blue); color: #fff; animation: check-pop .3s ease-out; }
+.check-row.warning .check-icon, .check-row.failed .check-icon { border-color: var(--warning-border); background: var(--warning-bg); color: var(--warning-text); }
+.check-row.failed .check-icon { border-color: var(--error); background: var(--error-bg); color: var(--error); }
+.check-row strong { display: block; }
+.check-row small { display: block; margin-top: 3px; color: var(--muted); overflow-wrap: anywhere; }
+.check-row .severity { margin-left: auto; color: var(--muted); font-size: .75rem; white-space: nowrap; }
+.check-summary { margin: 12px 0 0; font-size: .875rem; }
+.check-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.check-group { min-width: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--page); font-size: .8125rem; }
+.check-group strong { display: block; }
+.check-group span { color: var(--muted); }
+.check-issues { margin-top: 12px; }
+.check-issue { margin-top: 6px; padding: 8px 10px; border: 1px solid var(--warning-border); border-radius: 6px; background: var(--warning-bg); color: var(--warning-text); font-size: .8125rem; }
+.check-issue.failed { border-color: var(--error); background: var(--error-bg); color: var(--error); }
+.check-issue summary, .check-details summary { cursor: pointer; font-weight: 600; }
+.check-issue-list { padding: 4px 0 0 18px; margin: 0; overflow-wrap: anywhere; }
+.check-details { margin-top: 12px; font-size: .875rem; }
+.check-details summary { color: var(--blue-text); }
+.check-details .check-row:first-child { margin-top: 8px; }
+.storage-check { margin: 14px 0 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: .875rem; }
+.storage-check strong { display: block; }
+.storage-check p { margin: 4px 0; color: var(--muted); }
+.storage-check .check-track { margin: 10px 0; }
+.storage-check .check-row { padding: 5px 0; }
+.storage-card { margin-top: 14px; }
+.storage-card .text-button { margin-top: 4px; }
+@keyframes ring-turn { to { transform: rotate(360deg); } }
+@keyframes check-pop { from { transform: scale(.65); } to { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .check-ring.running, .check-row.running .check-icon, .check-row.passed .check-icon { animation: none; } .check-track span { transition: none; } }
+.text-button { padding: 8px 0; border: 0; background: none; color: var(--blue-text); font-size: .875rem; font-weight: 500; }
+.text-button:hover { text-decoration: underline; }
+.choice { display: flex; align-items: flex-start; gap: 12px; margin: 8px 0; padding: 14px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.choice:hover { background: var(--hover); }
+.choice:has(input:checked) { border-color: var(--blue); background: var(--blue-soft); }
+.choice input { flex: none; margin: 4px 0 0; accent-color: var(--blue); }
+.choice strong, .choice small { display: block; }
+.choice strong { font-size: .875rem; }
+.choice small { margin-top: 3px; color: var(--muted); font-size: .8125rem; }
+.destination-group { min-width: 0; margin: 0; padding: 0; border: 0; }
+.destination-group legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.destination-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.destination-tile { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 158px; padding: 16px; border: 2px solid var(--border); border-radius: 8px; cursor: pointer; }
+.destination-tile:hover { background: var(--hover); }
+.destination-tile:has(input:checked) { border-color: var(--blue); background: var(--blue-soft); }
+.destination-tile:focus-within { outline: 2px solid #3b82f6; outline-offset: 2px; }
+.destination-tile input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.tile-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 14px; color: var(--blue-text); }
+.tile-top > svg { width: 26px; height: 26px; flex: none; }
+.tile-check { display: grid; place-items: center; width: 22px; height: 22px; flex: none; border: 1px solid var(--input-border); border-radius: 50%; color: transparent; }
+.tile-check svg { width: 14px; height: 14px; }
+.destination-tile:has(input:checked) .tile-check { border-color: var(--blue); background: var(--blue); color: #fff; }
+.tile-copy strong, .tile-copy small { display: block; }
+.tile-copy strong { font-size: .875rem; line-height: 1.35; }
+.tile-copy strong { overflow-wrap: anywhere; }
+.tile-copy small { margin-top: 6px; color: var(--muted); font-size: .8125rem; line-height: 1.4; }
+.tile-badge { display: inline-block; margin-top: 8px; padding: 2px 8px; border-radius: 20px; background: var(--blue-soft); color: var(--blue-text); font-size: .75rem; font-weight: 600; }
+.context-heading { margin: 20px 0 10px; font-size: .875rem; font-weight: 600; }
+.destination-details { margin-top: 18px; }
+.destination-details .subfields, .destination-details .notice { margin-top: 0; }
+.field { display: block; margin: 16px 0; font-size: .875rem; font-weight: 500; }
+.field input { display: block; width: 100%; margin-top: 6px; padding: 9px 12px; border: 1px solid var(--input-border); border-radius: 6px; background: var(--surface); color: var(--text); }
+.field input::placeholder { color: var(--muted); }
+.field .hint { display: block; margin-top: 5px; font-weight: 400; }
+.field input[aria-invalid=true] { border-color: var(--error); }
+.subfields { margin: 14px 0 18px; padding: 2px 18px; border-left: 2px solid var(--border); }
+.notice { display: flex; gap: 12px; margin: 18px 0; padding: 14px; border: 1px solid var(--warning-border); border-radius: 8px; background: var(--warning-bg); color: var(--warning-text); font-size: .875rem; }
+.notice p { margin: 3px 0 0; }
+.feedback:not(:empty) { margin: 0 0 16px; padding: 12px 14px; border: 1px solid var(--error); border-radius: 6px; background: var(--error-bg); color: var(--error); font-size: .875rem; }
+.feedback:empty { display: none; }
+.review-list { margin: 0 0 24px; border: 1px solid var(--border); border-radius: 8px; }
+.review-list div { display: grid; grid-template-columns: minmax(130px, 35%) minmax(0, 1fr); gap: 14px; padding: 12px 16px; font-size: .875rem; }
+.review-list div + div { border-top: 1px solid var(--border); }
+.review-list dt { color: var(--muted); }
+.review-list dd { margin: 0; overflow-wrap: anywhere; }
+.status-mark { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: var(--blue-soft); color: var(--blue-text); }
+.status-mark svg { width: 26px; height: 26px; }
+.finished-link { display: inline-block; max-width: 100%; overflow-wrap: anywhere; color: var(--blue-text); }
+.finished-instructions { padding-left: 22px; overflow-wrap: anywhere; }
+.finished-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 20px; }
+.activity-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; }
+.activity-heading .section-label { margin-bottom: 4px; }
+.activity-meta { margin: 0 0 8px; color: var(--muted); font-size: .8125rem; }
+#latest-activity { margin: 4px 0 12px; overflow-wrap: anywhere; font-size: .875rem; }
+#events { min-height: clamp(220px, 32vh, 320px); max-height: clamp(300px, 48vh, 520px); overflow: auto; margin: 0; padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--page); color: var(--text); font: .875rem/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+#result { overflow-wrap: anywhere; }
+.actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 32px; border-top: 1px solid var(--border); }
+.actions-right { display: flex; margin-left: auto; }
+.button { padding: 9px 16px; border: 1px solid var(--input-border); border-radius: 6px; background: var(--surface); color: var(--text); font-size: .875rem; font-weight: 500; }
+.button:hover:not(:disabled) { background: var(--hover); }
+.button.primary { border-color: var(--blue); background: var(--blue); color: #fff; }
+.button.primary:hover:not(:disabled) { border-color: var(--blue-hover); background: var(--blue-hover); }
+.mobile-progress { display: none; }
+.track { height: 5px; overflow: hidden; border-radius: 6px; background: var(--soft); }
+.fill { height: 100%; background: var(--blue); }
+:where(button, input, select, a):focus-visible, .choice:focus-within { outline: 2px solid #3b82f6; outline-offset: 2px; }
+@media (max-width: 760px) {
+  .shell { padding: 0 16px 40px; }
+  .topline { margin-bottom: 20px; }
+  .topline small { display: none; }
+  .layout { display: block; }
+  .sidebar { display: none; }
+  .mobile-progress { display: block; margin-bottom: 20px; color: var(--muted); font-size: .875rem; }
+  .mobile-progress .track { margin-top: 8px; }
+  .panel-body { padding: 24px; }
+  .actions { padding: 16px 24px; }
+  .destination-grid { grid-template-columns: 1fr; }
+  .destination-tile { min-height: 0; }
+}
+@media (max-width: 520px) {
+  .grid { grid-template-columns: 1fr; gap: 0; }
+  .panel-body { padding: 20px; }
+  .actions { flex-wrap: wrap; padding: 16px 20px; }
+  .actions-right { flex: 1; }
+  .actions-right .button { width: 100%; }
+  .review-list div { display: block; }
+  .review-list dd { margin-top: 4px; }
+  .check-groups { grid-template-columns: 1fr; }
+}
+</style></head><body><div class="shell">
+<header class="topline"><div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v2"/><path d="M12 9.189V13"/><path d="M19 12V6a2 2 0 00-2-2H7a2 2 0 00-2 2v6"/><path d="M19.38 19A11.6 11.6 0 0021 13l-8.188-3.639a2 2 0 00-1.624 0L3 13.001a11.6 11.6 0 002.81 7.76"/><path d="M2 20c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1s1.2 1 2.5 1c2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/></svg></span>Kubarr</div><div class="topline-right"><small>Installation setup</small><label class="theme-control" for="theme">Theme <select id="theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label></div></header>
+<div id="warning" class="notice hidden" role="note"><span aria-hidden="true">⚠</span><div><strong>Unencrypted remote connection</strong><p>This wizard uses plain HTTP. Anyone able to observe network traffic could read your admin password and session. Use a trusted network or SSH port forwarding.</p></div></div>
+<p id="auth" role="status">Connecting to the installer…</p>
+<div id="wizard" class="layout hidden"><aside class="sidebar" aria-label="Installation steps"><span class="eyebrow">Setup</span><h2>Install Kubarr</h2><p>Configure the cluster and dashboard. Keep the CLI running during installation.</p><nav aria-label="Wizard steps"><ol class="steps" id="steps">
+<li><button type="button" data-step="0"><span class="step-number">01</span>Installation destination</button></li><li><button type="button" data-step="1"><span class="step-number">02</span>Server &amp; access</button></li><li><button type="button" data-step="2"><span class="step-number">03</span>Storage</button></li><li><button type="button" data-step="3"><span class="step-number">04</span>Administrator</button></li><li><button type="button" data-step="4"><span class="step-number">05</span>Review</button></li><li><button type="button" data-step="5"><span class="step-number">06</span>Installation</button></li><li><button type="button" data-step="6"><span class="step-number">07</span>Finished</button></li>
+</ol></nav></aside><main class="content"><div id="mobile-progress" class="mobile-progress" aria-live="polite"><span id="mobile-label"></span><div class="track"><div id="mobile-fill" class="fill"></div></div></div><p id="error" class="feedback" role="alert"></p>
+<div class="panel"><form id="form" novalidate>
+<section id="step-0" class="panel-body" aria-labelledby="title-0"><span class="eyebrow">Step 1 of 6 · Installation destination</span><h1 id="title-0">Where should Kubarr be installed?</h1><p class="lead">Choose a discovered Kubernetes context, install a new local cluster, or upload a self-contained kubeconfig.</p>
+<fieldset class="destination-group" aria-labelledby="title-0"><legend>Installation destination</legend><div class="destination-grid">
+<label class="destination-tile"><input type="radio" name="destination_mode" value="single-node"><span class="tile-top" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m8 9 3 3-3 3m6 0h3"/></svg><span class="tile-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg></span></span><span class="tile-copy"><strong>Install local k3s</strong><small>Set up a cluster on this machine.</small></span></label>
+<label class="destination-tile"><input type="radio" name="destination_mode" value="upload"><span class="tile-top" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V3m-4 4 4-4 4 4M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg><span class="tile-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg></span></span><span class="tile-copy"><strong>Upload kubeconfig</strong><small>Use a kubeconfig for this session.</small></span></label>
+</div><div id="context-heading" class="context-heading hidden">Available contexts</div><div id="context-tiles" class="destination-grid"></div></fieldset>
+<p id="local-message" class="hint" role="status"></p><div class="destination-details"><div id="k3s-note" class="notice hidden" role="note"><span aria-hidden="true">⚠</span><div><strong>This modifies THIS machine</strong><p>Installing k3s changes local cluster services, networking, and Kubernetes configuration. Review existing workloads and host setup before continuing.</p></div></div><div id="upload-options" class="subfields hidden"><div class="notice" role="note"><span aria-hidden="true">⚠</span><div><strong>Kubeconfig contains credentials</strong><p>Upload only over a trusted connection. The file must be self-contained with an embedded token or client certificate/key; exec plugins, auth-provider and file references are unsupported. Use HTTPS when uploading credentials.</p></div></div><label class="field" for="kubeconfig_file">Kubeconfig file (maximum 256 KiB)<input id="kubeconfig_file" type="file" accept=".yaml,.yml,.kubeconfig,text/yaml"></label><button id="upload" class="button" type="button">Upload and discover contexts</button><p id="upload-message" class="hint" role="status"></p></div></div><hr class="divider"><div class="section-label">Environment checks</div><p class="muted">Select a context to run live prerequisite checks. Local k3s cluster checks run after the cluster is created.</p><div id="checks" class="checks" role="region" aria-label="Environment checks">Checking available tools…</div><button class="text-button" type="button" id="refresh">↻ Refresh checks</button></section>
+<section id="step-1" class="panel-body hidden" aria-labelledby="title-1"><span class="eyebrow">02 / Server &amp; access</span><h1 id="title-1">Server and dashboard access</h1><p class="lead">Name your server and choose how to access the dashboard.</p><label class="field" for="server_name">Server name<input id="server_name" name="server_name" value="Kubarr" required maxlength="255"><span class="hint">The name displayed in your Kubarr dashboard.</span></label><div class="section-label">Dashboard access</div><label class="choice"><input type="radio" name="access_mode" value="nodeport" checked><span><strong>Gateway NodePort</strong><small>Expose the dashboard gateway through a port on your cluster nodes.</small></span></label><label class="choice"><input type="radio" name="access_mode" value="loadbalancer"><span><strong>LoadBalancer</strong><small>Expose the dashboard gateway at a public address assigned by your cluster’s load balancer (service port 8080).</small></span></label><label class="choice"><input type="radio" name="access_mode" value="port-forward"><span><strong>Port-forward only</strong><small>Connect on demand with kubectl port-forward to the gateway service on port 8080; no public address is assigned.</small></span></label><div id="port" class="subfields"><label class="field" for="backend_port">Gateway NodePort<input id="backend_port" name="backend_port" type="number" value="30080" min="30000" max="32767" required><span class="hint">Choose a port between 30000 and 32767.</span></label></div>
+<div id="lb-notice" class="notice hidden" role="note"><span aria-hidden="true">⚠</span><div>
+  <strong>Load balancer required</strong>
+  <p>Bare-metal clusters need a configured load balancer implementation (for example MetalLB or Cilium). This wizard does not install a controller; the external IP may remain pending until one is available.</p>
+  <p>Test LoadBalancer creates a TEMPORARY, selectorless LoadBalancer Service to request an address. Cloud providers may charge for these billable resources. If the openresty namespace is absent, the test prepares it and retains it for the future gateway install. The test does not install a load balancer controller.</p>
+  <p>Cleanup confirms the temporary Service is absent from the Kubernetes API after deletion (including finalizers), but external provider deprovisioning may lag. Passing verifies address allocation capability for only five minutes; it does not reserve an address or prove actual public reachability or guarantee a future deployment.</p>
+</div></div>
+<div id="lb-check" class="storage-check hidden" role="status" aria-live="polite"></div><button id="lb-test" type="button" class="button hidden">Test LoadBalancer</button></section>
+<section id="step-2" class="panel-body hidden" aria-labelledby="title-2"><span class="eyebrow">03 / Storage</span><h1 id="title-2">Configure shared storage</h1><p class="lead">Choose managed storage or connect to an existing NFS export.</p><label class="choice"><input type="radio" name="storage_mode" value="managed-nfs" checked><span><strong>Managed NFS</strong><small>Kubarr runs an NFS service backed by a persistent volume claim.</small></span></label><label class="choice"><input type="radio" name="storage_mode" value="external-nfs"><span><strong>External NFS</strong><small>Connect to an NFS server and export you already manage.</small></span></label><div id="managed" class="subfields"><label class="field" for="storage_size">Managed NFS size<input id="storage_size" name="storage_size" value="1Ti" maxlength="255" required><span class="hint">Kubernetes quantity, for example 500Gi or 1Ti.</span></label><label class="field" for="storage_class">StorageClass <span class="muted">(optional)</span><input id="storage_class" name="storage_class" maxlength="255" placeholder="Cluster default"><span class="hint">Leave blank to use the cluster default.</span></label></div><div id="external" class="subfields hidden"><label class="field" for="nfs_server">NFS server<input id="nfs_server" name="nfs_server" maxlength="255"><span class="hint">Hostname or IP address of your NFS server.</span></label><label class="field" for="nfs_path">NFS export path<input id="nfs_path" name="nfs_path" value="/data" maxlength="255"><span class="hint">Absolute path exported by the server.</span></label></div><div id="storage-check" class="storage-check hidden" role="status" aria-live="polite"></div></section>
+<section id="step-3" class="panel-body hidden" aria-labelledby="title-3"><span class="eyebrow">04 / Administrator</span><h1 id="title-3">Create an administrator</h1><p class="lead">Create your first account and choose whether to add Grafana dashboards.</p><div class="grid"><label class="field" for="admin_username">Username<input id="admin_username" name="admin_username" value="admin" required maxlength="255" autocomplete="username"></label><label class="field" for="admin_email">Email address<input id="admin_email" name="admin_email" type="email" value="admin@kubarr.local" required maxlength="255" autocomplete="email"></label></div><div class="grid"><label class="field" for="admin_password">Password<input id="admin_password" name="admin_password" type="password" required minlength="8" maxlength="1024" autocomplete="new-password"><span class="hint">At least 8 characters.</span></label><label class="field" for="admin_confirm">Confirm password<input id="admin_confirm" name="admin_confirm" type="password" required minlength="8" maxlength="1024" autocomplete="new-password"></label></div><hr class="divider"><div class="section-label">Observability</div><p class="muted">Fluent Bit, VictoriaLogs, and VictoriaMetrics are always installed.</p><label class="choice"><input name="grafana" type="checkbox"><span><strong>Add Grafana dashboards</strong><small>Install optional visualization dashboards alongside core observability.</small></span></label></section>
+<section id="step-4" class="panel-body hidden" aria-labelledby="title-4"><span class="eyebrow">05 / Review</span><h1 id="title-4">Review configuration</h1><p class="lead">Double-check your setup. Your password is never shown in this summary.</p><dl id="summary" class="review-list"></dl><div id="lb-review-notice" class="notice hidden" role="note"><span aria-hidden="true">⚠</span><div><strong>Load balancer required</strong><p>Bare-metal clusters need a configured load balancer implementation (for example MetalLB or Cilium). This wizard does not install a controller; the external IP may remain pending until one is available.</p></div></div><div class="notice"><span aria-hidden="true">⚠</span><div><strong>Installation changes your cluster</strong><p>The next step installs services and configures storage in the selected cluster. If you selected k3s, it also modifies this host’s Kubernetes setup.</p></div></div></section>
+<section id="step-5" class="panel-body hidden" aria-labelledby="title-5"><span class="eyebrow">06 / Installation</span><div class="status-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v2"/><path d="M12 9.189V13"/><path d="M19 12V6a2 2 0 00-2-2H7a2 2 0 00-2 2v6"/><path d="M19.38 19A11.6 11.6 0 0021 13l-8.188-3.639a2 2 0 00-1.624 0L3 13.001a11.6 11.6 0 002.81 7.76"/><path d="M2 20c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1s1.2 1 2.5 1c2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/></svg></div><h1 id="title-5"><span id="phase">Installing Kubarr…</span></h1><p class="lead" id="status-description">This may take a few minutes. Keep the CLI running; closing this tab does not stop installation.</p><div class="activity-heading"><div class="section-label">Installation activity</div><button id="follow-events" type="button" class="text-button" aria-pressed="true">Pause follow</button></div><p id="activity-count" class="activity-meta">Recent activity · 0 events (up to 500 retained)</p><p id="latest-activity" role="status" aria-live="polite">Latest activity: Waiting for updates…</p><pre id="events" role="log" aria-live="off" aria-label="Recent installation activity">Waiting for updates…</pre><p id="result" role="status"></p><button id="reconnect" type="button" class="button hidden">↻ Reconnect</button></section>
+<section id="step-6" class="panel-body hidden" aria-labelledby="title-6"><span class="eyebrow">07 / Finished</span><div class="status-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg></div><h1 id="title-6">Kubarr is ready</h1><p class="lead">Installation completed. Your dashboard access details are below.</p><div id="access-details" role="status"></div><div class="finished-controls"><button id="refresh-access" type="button" class="button">↻ Refresh dashboard address</button><button id="view-log" type="button" class="button">View installation log</button><a class="finished-link" href="/api/install-log" download="kubarr-install.log">Download installation log</a></div><p id="access-error" class="feedback" role="alert"></p></section>
+<div class="actions" id="actions"><button type="button" id="back" class="button hidden">← Back</button><div class="actions-right"><button type="button" id="next" class="button primary">Continue →</button><button type="button" id="start" class="button primary hidden">Install Kubarr →</button></div></div>
+</form></div></main></div></div>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+// Mirror the dashboard's class-based theme and shared preference without loading assets.
+const theme = $('theme');
+let savedTheme = 'system';
+try { savedTheme = localStorage.getItem('kubarr-theme') || 'system'; } catch { /* Storage can be disabled. */ }
+theme.value = ['system', 'light', 'dark'].includes(savedTheme) ? savedTheme : 'system';
+const systemTheme = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+function applyTheme() {
+  document.documentElement?.classList.toggle('dark', theme.value === 'dark' || (theme.value === 'system' && (systemTheme?.matches ?? true)));
+}
+theme.onchange = () => {
+  try { localStorage.setItem('kubarr-theme', theme.value); } catch { /* Keep this tab's choice. */ }
+  applyTheme();
+};
+systemTheme?.addEventListener?.('change', applyTheme);
+applyTheme();
+const names = ['Installation destination','Server & access','Storage','Administrator','Review','Installation','Finished'];
+$('step-0').querySelector('.eyebrow')?.replaceChildren('Step 1 of 7 · Installation destination');
+let csrf = '', step = 0, furthest = 0, started = false, submitting = false, choice = null;
+let statusEpoch = 0, startFailure = '', startFailureStep = 4;
+let installPhase = 'ready', accessEpoch = 0;
+let targets = [], discovering = true, uploading = false, destinationEpoch = 0, discoveryEpoch = 0, checkEpoch = 0;
+let uploadVersion = 0;
+let sessionEpoch = 0, checkId = '', checkState = null, completedAt = 0, startQueue = Promise.resolve();
+const checkTTL = 5 * 60 * 1000;
+let storageEpoch = 0, storageId = '', storageState = null, storageParams = null, storageCompletedAt = 0, storagePending = false, storageIntent = false, storageError = '', storageQueue = Promise.resolve();
+let lbEpoch = 0, lbId = '', lbTarget = '', lbState = null, lbCompletedAt = 0, lbPending = false, lbError = '', lbQueue = Promise.resolve();
+const lbEligible = () => value('access_mode') !== 'loadbalancer' ||
+  (destination()?.kind === 'context' && lbTarget === destination().target_id && !lbPending &&
+   lbState?.check_id === lbId && lbState?.target_id === lbTarget && lbState.phase === 'complete' && lbState.eligible === true &&
+   lbState.checks?.length > 0 && lbState.checks.some(c => c.severity === 'required') &&
+   lbState.checks.filter(c => c.severity === 'required').every(c => c.state === 'passed') &&
+   lbState.checks.every(c => c.id !== 'cleanup' || c.state === 'passed') &&
+   lbCompletedAt > 0 && Date.now() - lbCompletedAt < checkTTL);
+function renderLB() {
+  const active = value('access_mode') === 'loadbalancer', local = destination()?.kind === 'single-node';
+  $('lb-test').classList.toggle('hidden', !active);
+  $('lb-test').disabled = !active || local || !eligibleDestination() || lbPending || started || submitting;
+  const card = $('lb-check'); card.classList.toggle('hidden', !active);
+  if (!active) return;
+  card.textContent = '';
+  const heading = document.createElement('strong'); heading.textContent = local ? 'Cannot test before local k3s exists' : lbPending ? 'Testing LoadBalancer…' : lbEligible() ? 'LoadBalancer verified' : 'LoadBalancer verification required';
+  const description = document.createElement('p'); description.textContent = local ? 'Choose an existing configured cluster, or use NodePort or port-forward. Local k3s cannot be validated before installation.' : lbError || (lbEligible() ? 'Temporary Service deletion confirmed; external provider deprovisioning may lag. Allocation capability was verified for five minutes; this does not guarantee a reserved IP, reachability, or future deployment.' : lbState ? 'Temporary Service deletion or allocation check was not confirmed. Configure a controller such as MetalLB or Cilium, then retry the test.' : 'Press Test LoadBalancer to check the selected cluster; selecting this option alone does not create resources.');
+  card.append(heading,description);
+  for (const c of lbState?.checks || []) {
+    const row = document.createElement('div'); row.className = `check-row ${c.state}`;
+    const icon = document.createElement('span'); icon.className = 'check-icon'; icon.setAttribute('aria-hidden','true'); icon.textContent = ({passed:'✓',failed:'×',running:'·',pending:'·'})[c.state] || '·';
+    const text = document.createElement('span'); text.textContent = `${c.label}: ${c.state}${c.message ? ` · ${c.message}` : ''}`;
+    row.append(icon,text); card.append(row);
+  }
+}
+function invalidateLB() {
+  ++lbEpoch; const old = lbId; lbId = ''; lbTarget = ''; lbState = null; lbCompletedAt = 0; lbPending = false; lbError = '';
+  if (old) request('/api/loadbalancer-checks/cancel','POST',{check_id:old}).catch(() => {});
+  renderLB(); updateForward();
+}
+function lbCurrent(epoch,target) { return epoch === lbEpoch && !started && value('access_mode') === 'loadbalancer' && destination()?.kind === 'context' && destination().target_id === target; }
+function lbFailure(message) {
+  lbPending = false; lbCompletedAt = 0;
+  lbError = `LoadBalancer check failed: ${message}. Configure the missing controller/address (MetalLB or Cilium), confirm cleanup, then retry Test LoadBalancer.`;
+  renderLB(); updateForward();
+}
+function startLB() {
+  if (lbPending || !eligibleDestination() || destination()?.kind !== 'context' || value('access_mode') !== 'loadbalancer' || started || submitting) return;
+  invalidateLB(); lbPending = true; lbTarget = destination().target_id;
+  const target = lbTarget, epoch = lbEpoch;
+  renderLB(); updateForward();
+  // Serialize creations so a late POST is cancelled before another test starts.
+  lbQueue = lbQueue.catch(() => {}).then(async () => {
+    if (!lbCurrent(epoch,target)) return;
+    try {
+      const result = await request('/api/loadbalancer-checks','POST',{target_id:target});
+      if (!lbCurrent(epoch,target)) { if (result?.check_id) await request('/api/loadbalancer-checks/cancel','POST',{check_id:result.check_id}).catch(() => {}); return; }
+      if (!result?.check_id) { lbFailure('No check ID returned'); return; }
+      lbId = result.check_id; pollLB(epoch,result.check_id,target);
+    } catch (e) { if (lbCurrent(epoch,target)) lbFailure(e.message); }
+  });
+}
+async function pollLB(epoch,id,target) {
+  if (!lbCurrent(epoch,target) || lbId !== id) return;
+  try {
+    const state = await request(`/api/loadbalancer-checks/${encodeURIComponent(id)}`);
+    if (!lbCurrent(epoch,target) || lbId !== id) return;
+    if (state.check_id !== id || state.target_id !== target) { lbFailure('Result did not match the selected cluster'); return; }
+    lbState = state;
+    if (state.phase === 'running') { renderLB(); updateForward(); setTimeout(() => pollLB(epoch,id,target),650); return; }
+    lbPending = false;
+    if (state.phase === 'complete' && state.eligible === true && state.checks?.length && state.checks.some(c => c.severity === 'required') && state.checks.filter(c => c.severity === 'required').every(c => c.state === 'passed') && state.checks.every(c => c.id !== 'cleanup' || c.state === 'passed')) {
+      lbCompletedAt = Date.now(); renderLB(); updateForward();
+      setTimeout(() => { if (lbCurrent(epoch,target) && lbId === id) { renderLB(); updateForward(); } },checkTTL);
+    } else lbFailure(state.checks?.find(c => c.state === 'failed')?.message || 'Address or cleanup was not confirmed');
+  } catch (e) { if (lbCurrent(epoch,target) && lbId === id) lbFailure(e.message); }
+}
+const storageFields = () => ({target_id:destination()?.target_id || '',server:value('nfs_server').trim(),path:value('nfs_path').trim()});
+const sameStorage = (a,b) => !!a && !!b && a.target_id === b.target_id && a.server === b.server && a.path === b.path;
+const storageEligible = () => value('storage_mode') !== 'external-nfs' || destination()?.kind === 'single-node' ||
+  (sameStorage(storageParams,storageFields()) && storageState?.phase === 'complete' && storageState.eligible === true &&
+    storageState.checks?.some(c => c.id === 'cleanup' && c.state === 'passed') && storageState.checks.every(c => c.state === 'passed') && storageCompletedAt > 0 && Date.now() - storageCompletedAt < checkTTL);
+const storageGroups = [['Connection / mount',['node','resources','mount']],['Read / write',['write']],['Cleanup',['cleanup']]];
+let storageView = null;
+function renderStorage() {
+  const card = $('storage-check'); card.classList.toggle('hidden', value('storage_mode') !== 'external-nfs');
+  if (value('storage_mode') !== 'external-nfs') return;
+  card.classList.remove('storage-check'); card.classList.add('check-card'); card.classList.add('storage-card');
+  if (!storageView) {
+    card.setAttribute('role','region'); card.setAttribute('aria-label','NFS storage checks'); card.removeAttribute('aria-live');
+    card.textContent = '';
+    const header = document.createElement('div'); header.className = 'check-header';
+    const ring = document.createElement('span'); ring.className = 'check-ring'; ring.setAttribute('aria-hidden','true');
+    const heading = document.createElement('div'); const title = document.createElement('h2');
+    const count = document.createElement('p'); count.setAttribute('role','status'); count.setAttribute('aria-live','polite');
+    heading.append(title,count); header.append(ring,heading);
+    const track = document.createElement('div'); track.className = 'check-track'; track.setAttribute('role','progressbar'); track.setAttribute('aria-label','NFS stages completed'); track.setAttribute('aria-valuemin','0');
+    const fill = document.createElement('span'); track.append(fill);
+    const groups = document.createElement('div'); groups.className = 'check-groups';
+    const groupItems = new Map();
+    for (const [label] of storageGroups) {
+      const group = document.createElement('div'); group.className = 'check-group';
+      const name = document.createElement('strong'); name.textContent = label;
+      const status = document.createElement('span'); group.append(name,status); groups.append(group); groupItems.set(label,status);
+    }
+    const issues = document.createElement('div'); issues.className = 'check-issues';
+    const details = document.createElement('details'); details.className = 'check-details';
+    const detailsTitle = document.createElement('summary'); detailsTitle.textContent = 'View all check details';
+    const rows = document.createElement('div'); details.append(detailsTitle,rows);
+    const description = document.createElement('p'); description.className = 'check-summary';
+    const summary = document.createElement('p'); summary.className = 'check-summary';
+    const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'text-button hidden'; retry.textContent = '↻ Retry NFS check'; retry.onclick = () => { if (!storagePending && step === 2 && !started && !submitting && destination()?.kind === 'context' && validate(2)) startStorage(); };
+    card.append(header,track,groups,issues,details,description,summary,retry);
+    storageView = {ring,title,count,track,fill,groups,groupItems,issues,issueItems:new Map(),details,rows,items:new Map(),description,summary,retry};
+  }
+  const {ring,title,count,track,fill,groups,groupItems,issues,issueItems,rows,items,description,summary,retry} = storageView;
+  const deferred = destination()?.kind === 'single-node';
+  const checks = storageState?.checks || [];
+  const done = checks.filter(c => ['passed','failed','warning'].includes(c.state)).length;
+  const eligible = !deferred && storageEligible();
+  const running = !deferred && storagePending;
+  ring.className = 'check-ring' + (running ? ' running' : eligible ? '' : ' warning');
+  ring.textContent = running ? '·' : eligible ? '✓' : '!';
+  title.textContent = deferred ? 'Validation deferred' : running ? 'Checking NFS storage…' : eligible ? 'NFS storage verified' : 'NFS storage check';
+  const active = checks.find(c => c.state === 'running');
+  const countText = deferred ? 'Validation deferred · not a passing result' : storageState ? `${done} of ${checks.length} stages complete · ${running ? active ? `Checking ${active.label}…` : 'Checking…' : eligible ? 'NFS checks passed' : 'Needs attention'}` : running ? 'Starting checks…' : 'Not checked';
+  if (count.textContent !== countText) count.textContent = countText;
+  track.setAttribute('aria-valuemax',String(checks.length)); track.setAttribute('aria-valuenow',String(done));
+  fill.style.width = checks.length ? `${100 * done / checks.length}%` : '0%';
+  track.classList.toggle('hidden',deferred); groups.classList.toggle('hidden',deferred); issues.classList.toggle('hidden',deferred); storageView.details.classList.toggle('hidden',deferred);
+  for (const [label,ids] of storageGroups) {
+    const list = checks.filter(c => ids.includes(c.id));
+    const passed = list.filter(c => c.state === 'passed').length;
+    const failed = list.filter(c => c.state === 'failed').length;
+    const warning = list.filter(c => c.state === 'warning').length;
+    const activeCount = list.filter(c => c.state === 'running').length;
+    const text = list.length ? `${passed}/${list.length} passed${failed ? ` · ${failed} failed` : ''}${warning ? ` · ${warning} warning` : ''}${activeCount ? ` · ${activeCount} running` : ''}` : 'Awaiting results';
+    const status = groupItems.get(label); if (status.textContent !== text) status.textContent = text;
+  }
+  const problems = checks.filter(c => c.state === 'failed' || c.state === 'warning' || (storageState?.phase === 'complete' && c.id === 'cleanup' && c.state !== 'passed'));
+  const visibleIssues = new Set();
+  for (const c of problems) {
+    visibleIssues.add(c.id);
+    let issue = issueItems.get(c.id);
+    if (!issue) { issue = document.createElement('div'); issues.append(issue); issueItems.set(c.id,issue); }
+    issue.className = `check-issue${c.state === 'failed' ? ' failed' : ''}`;
+    const text = `${c.label}: ${c.state} · ${c.message || 'Needs attention'}`;
+    if (issue.textContent !== text) issue.textContent = text;
+  }
+  for (const [id,issue] of issueItems) if (!visibleIssues.has(id)) { issue.remove(); issueItems.delete(id); }
+  const present = new Set();
+  for (const c of checks) {
+    present.add(c.id);
+    let item = items.get(c.id);
+    if (!item) {
+      const row = document.createElement('div'); const icon = document.createElement('span'); icon.className = 'check-icon'; icon.setAttribute('aria-hidden','true');
+      const copy = document.createElement('span'); const name = document.createElement('strong'); const detail = document.createElement('small'); copy.append(name,detail);
+      const severity = document.createElement('span'); severity.className = 'severity'; row.append(icon,copy,severity);
+      item = {row,icon,name,detail,severity,state:null}; items.set(c.id,item);
+    }
+    if (item.state !== c.state) { item.row.className = `check-row ${c.state}`; item.icon.textContent = ({passed:'✓',warning:'!',failed:'×',pending:'·',running:'·'})[c.state] || '·'; item.state = c.state; }
+    item.name.textContent = `${c.label}: `;
+    const detailText = `${c.state} · ${c.message || 'Waiting for result'}`;
+    if (item.detail.textContent !== detailText) item.detail.textContent = detailText;
+    item.severity.textContent = c.severity === 'required' ? 'Required' : 'Advisory';
+  }
+  for (const [id,item] of items) if (!present.has(id)) { item.row.remove(); items.delete(id); }
+  checks.forEach((c,index) => { const row = items.get(c.id).row; if (rows.children[index] !== row) rows.insertBefore(row,rows.children[index] || null); });
+  description.textContent = deferred ? 'Local k3s does not exist yet. Storage validation runs after the cluster is created, before any Kubarr components are installed; this is not a passing result.' : 'Continue creates an ephemeral pod on the selected cluster, writes, reads, and removes a unique NFSv4.1 test file as UID/GID 1000. Existing data is not touched.';
+  summary.textContent = storageError || (running ? active?.message || 'Waiting for the selected cluster…' : eligible ? 'Write, read, and cleanup confirmed. Ready to continue.' : storageState ? 'Storage could not be verified, including cleanup. Fix the issue and press Continue to retry.' : 'Press Continue to verify this export before proceeding.');
+  retry.classList.toggle('hidden',deferred || running || eligible || (!storageError && !storageState));
+}
+function invalidateStorage() {
+  ++storageEpoch; storageIntent = false; storagePending = false; storageState = null; storageParams = null; storageCompletedAt = 0; storageError = '';
+  const old = storageId; storageId = '';
+  if (old) request('/api/storage-checks/cancel','POST',{check_id:old}).catch(() => {});
+  renderStorage(); updateForward();
+}
+function storageCurrent(epoch,params) { return epoch === storageEpoch && sameStorage(params,storageFields()) && value('storage_mode') === 'external-nfs' && destination()?.kind === 'context' && !started; }
+function startStorage() {
+  if (storagePending) return;
+  invalidateStorage(); storagePending = true; storageIntent = true; storageParams = storageFields();
+  const params = storageParams, epoch = storageEpoch;
+  renderStorage(); updateForward();
+  // Serialize creations so a late POST is cancelled before the next session starts.
+  storageQueue = storageQueue.catch(() => {}).then(async () => {
+    if (!storageCurrent(epoch,params)) return;
+    try {
+      const result = await request('/api/storage-checks','POST',params);
+      if (!storageCurrent(epoch,params)) { if (result?.check_id) await request('/api/storage-checks/cancel','POST',{check_id:result.check_id}).catch(() => {}); return; }
+      storageId = result.check_id; pollStorage(epoch,result.check_id,params);
+    } catch (e) { if (storageCurrent(epoch,params)) storageFailure(e.message); }
+  });
+}
+function storageFailure(message) { storagePending = false; storageIntent = false; storageError = `NFS storage check failed: ${message}. Check the server, export permissions, and cleanup, then press Continue to retry.`; error(storageError); renderStorage(); updateForward(); }
+async function pollStorage(epoch,id,params) {
+  if (!storageCurrent(epoch,params) || id !== storageId) return;
+  try {
+    const state = await request(`/api/storage-checks/${encodeURIComponent(id)}`);
+    if (!storageCurrent(epoch,params) || id !== storageId) return;
+    if (state.check_id !== id || !sameStorage(state,params)) { storageFailure('Result did not match the selected destination or export'); return; }
+    storageState = state;
+    if (state.phase === 'running') { renderStorage(); setTimeout(() => pollStorage(epoch,id,params),650); return; }
+    storagePending = false;
+    if (state.phase === 'complete' && state.eligible === true && state.checks?.some(c => c.id === 'cleanup' && c.state === 'passed') && state.checks.every(c => c.state === 'passed')) {
+      storageCompletedAt = Date.now(); renderStorage(); updateForward();
+      if (storageIntent && step === 2) { storageIntent = false; navigate(3); }
+    } else storageFailure(state.checks?.find(c => c.state === 'failed')?.message || 'Cleanup or another required check was not confirmed');
+  } catch (e) { if (storageCurrent(epoch,params) && id === storageId) storageFailure(e.message); }
+}
+const error = message => { $('error').textContent = message; };
+async function request(path, method = 'GET', body) {
+  const response = await fetch(path, {method, credentials:'same-origin', headers:{...(body ? {'Content-Type':'application/json'} : {}), ...(csrf && method !== 'GET' ? {'X-Kubarr-CSRF':csrf} : {})}, body:body ? JSON.stringify(body) : undefined, cache:'no-store'});
+  if (!response.ok) { const failure = Error((await response.text()).slice(0,400)); failure.status = response.status; throw failure; }
+  return path === '/api/start' && response.status === 202 ? null : response.json();
+}
+const mode = () => value('destination_mode');
+function selectedTarget() {
+  const selected = [...$('context-tiles').children].find(tile => tile.firstChild.checked)?.firstChild;
+  return mode() === 'context' ? targets.find(t => t.id === selected?.dataset.targetId) || null : null;
+}
+function destination() {
+  if (mode() === 'single-node') return {kind:'single-node'};
+  const target = selectedTarget();
+  return target ? {kind:'context',target_id:target.id} : null;
+}
+function updateForward() {
+  const ready = eligibleDestination();
+  $('next').disabled = (step === 0 && (uploading || discovering || !ready)) || (step === 1 && !lbEligible()) || submitting || storagePending;
+  $('start').disabled = started || submitting || step === 5 || uploading || !ready || storagePending || !storageEligible() || !lbEligible();
+  $('lb-test').disabled = value('access_mode') !== 'loadbalancer' || destination()?.kind !== 'context' || !ready || lbPending || started || submitting;
+}
+function eligibleDestination() {
+  const dest = destination();
+  return !!dest && (dest.kind === 'single-node' || (checkState?.target_id === dest.target_id && checkState.phase === 'complete' && checkState.eligible === true && completedAt > 0 && Date.now() - completedAt < checkTTL));
+}
+function badgeStatus() {
+  const target = selectedTarget();
+  for (const tile of $('context-tiles').children) {
+    const badge = tile.querySelector('.check-badge');
+    if (badge) badge.textContent = tile.firstChild.dataset.targetId === target?.id ?
+      (eligibleDestination() ? 'Baseline passed' : checkState?.phase === 'running' || !checkState && !completedAt && !checkError ? 'Checking' : 'Needs attention') : '';
+  }
+}
+let checkError = '';
+function invalidateChecks() {
+  ++sessionEpoch; ++checkEpoch;
+  const oldId = checkId;
+  checkId = ''; checkState = null; completedAt = 0; checkError = '';
+  if (oldId) request('/api/checks/cancel', 'POST', {check_id:oldId}).catch(() => {});
+  badgeStatus(); updateForward();
+}
+function listTargets() {
+  const grid = $('context-tiles');
+  const previous = [...grid.children].find(tile => tile.firstChild.checked)?.firstChild.dataset.targetId;
+  const wasContext = mode() === 'context';
+  grid.textContent = '';
+  const sources = {env:'Environment kubeconfig',default:'Default kubeconfig',local:'Local kubeconfig',k3s:'Local k3s kubeconfig',upload:'Uploaded kubeconfig'};
+  for (const target of targets.filter(t => Object.hasOwn(sources, t.source))) {
+    const tile = document.createElement('label'); tile.className = 'destination-tile';
+    const radio = document.createElement('input'); radio.type = 'radio'; radio.name = 'destination_mode'; radio.value = 'context'; radio.dataset.targetId = target.id;
+    radio.checked = wasContext && target.id === previous;
+    radio.onchange = destinationChanged;
+    const top = document.createElement('span'); top.className = 'tile-top'; top.setAttribute('aria-hidden', 'true');
+    const icon = document.createElement('span'); icon.textContent = '☸'; icon.style.fontSize = '26px';
+    const check = document.createElement('span'); check.className = 'tile-check'; check.textContent = '✓';
+    top.append(icon, check);
+    const copy = document.createElement('span'); copy.className = 'tile-copy';
+    const name = document.createElement('strong'); name.textContent = `${target.label} · ${target.context}`;
+    const source = document.createElement('small'); source.textContent = sources[target.source];
+    copy.append(name, source);
+    if (target.current) { const badge = document.createElement('span'); badge.className = 'tile-badge'; badge.textContent = 'Current'; copy.append(badge); }
+    const stateBadge = document.createElement('span'); stateBadge.className = 'tile-badge check-badge'; copy.append(stateBadge);
+    tile.append(radio, top, copy); grid.append(tile);
+  }
+  $('context-heading').classList.toggle('hidden', !grid.children.length);
+  $('local-message').textContent = targets.some(t => ['env','default','local','k3s'].includes(t.source)) ? '' : 'No local kubeconfig contexts found. You can install local k3s or upload a kubeconfig.';
+  badgeStatus();
+  updateForward();
+}
+function mergeTargets(existing, incoming) {
+  const merged = new Map(existing.map(target => [target.id, target]));
+  for (const target of incoming) merged.set(target.id, target);
+  return [...merged.values()];
+}
+async function discover() {
+  const epoch = ++discoveryEpoch;
+  const version = uploadVersion;
+  try {
+    const result = await request('/api/targets');
+    if (epoch !== discoveryEpoch) return;
+    // GET is authoritative unless an upload completed while this request was in flight.
+    targets = version === uploadVersion ? result.targets : mergeTargets(result.targets, targets);
+    const previous = selectedTarget()?.id;
+    listTargets();
+    if (previous && selectedTarget()?.id !== previous) { invalidateLB(); invalidateStorage(); invalidateChecks(); refresh(); }
+   } catch { if (epoch === discoveryEpoch) $('local-message').textContent = 'Could not discover local contexts. Try local k3s or upload a kubeconfig.'; }
+  finally { if (epoch === discoveryEpoch) { discovering = false; updateForward(); } }
+}
+async function refresh() {
+  const target = selectedTarget();
+  if (target) { startChecks(target); return; }
+  const epoch = ++checkEpoch;
+  const path = '/api/preflight';
+  $('checks').className = 'checks';
+  $('checks').textContent = 'Checking available tools…';
+  try {
+    const c = await request(path);
+    if (epoch !== checkEpoch || selectedTarget()) return;
+    const values = [['kubectl',c.kubectl ? 'Found' : 'Missing'],['Helm',c.helm ? 'Found' : 'Missing'],['Current context',c.context || 'Not detected'],['Default StorageClass',c.storage_class || 'Not detected']];
+    $('checks').textContent = '';
+    for (const [label, value] of values) { const item = document.createElement('div'); item.className = 'check'; const title = document.createElement('span'); title.textContent = label; const detail = document.createElement('strong'); detail.textContent = value; item.append(title, detail); $('checks').append(item); }
+    if (mode() === 'single-node') { const note = document.createElement('div'); note.className = 'check'; note.textContent = 'Cluster context and storage checks are deferred until local k3s is created.'; $('checks').append(note); }
+  } catch { if (epoch === checkEpoch && !selectedTarget()) $('checks').textContent = 'Could not run tool checks. Try refreshing.'; }
+}
+let checkView = null;
+const checkGroups = ['Tools','Cluster','APIs','Permissions','Storage & metrics','GPU'];
+function checkGroup(id) {
+  if (id === 'gpu') return 'GPU';
+  if (id === 'kubectl' || id === 'helm') return 'Tools';
+  if (id === 'api' || id === 'server-version' || id === 'nodes') return 'Cluster';
+  if (id.startsWith('resource-')) return 'APIs';
+  if (id.startsWith('permission-')) return 'Permissions';
+  if (id === 'storage' || id === 'metrics') return 'Storage & metrics';
+  return 'Other checks';
+}
+function renderChecks() {
+  const target = selectedTarget();
+  if (!target) return;
+  const checks = checkState?.checks || [];
+  const done = checks.filter(c => ['passed','warning','failed'].includes(c.state)).length;
+  const total = checks.length;
+  const card = $('checks');
+  if (!checkView || checkView.targetId !== target.id || card.className !== 'check-card') {
+    card.textContent = ''; card.className = 'check-card';
+    const header = document.createElement('div'); header.className = 'check-header';
+    const ring = document.createElement('span'); ring.className = 'check-ring'; ring.setAttribute('aria-hidden','true');
+    const heading = document.createElement('div'); const title = document.createElement('h2');
+    const count = document.createElement('p'); count.setAttribute('role','status'); count.setAttribute('aria-live','polite');
+    heading.append(title,count); header.append(ring,heading);
+    const track = document.createElement('div'); track.className = 'check-track'; track.setAttribute('role','progressbar'); track.setAttribute('aria-label','Prerequisite checks completed'); track.setAttribute('aria-valuemin','0');
+    const fill = document.createElement('span'); fill.style.width = '0%'; track.append(fill);
+    const groups = document.createElement('div'); groups.className = 'check-groups';
+    const groupItems = new Map();
+    for (const label of checkGroups) {
+      const row = document.createElement('div'); row.className = 'check-group';
+      const name = document.createElement('strong'); name.textContent = label;
+      const status = document.createElement('span'); row.append(name,status); groups.append(row);
+      groupItems.set(label,status);
+    }
+    const issues = document.createElement('div'); issues.className = 'check-issues';
+    const gpu = document.createElement('div'); gpu.className = 'check-issue hidden'; gpu.setAttribute('role','note');
+    const details = document.createElement('details'); details.className = 'check-details';
+    const detailsTitle = document.createElement('summary'); detailsTitle.textContent = 'View all check details';
+    const rows = document.createElement('div'); details.append(detailsTitle,rows);
+    const summary = document.createElement('p'); summary.className = 'check-summary';
+    card.append(header,track,groups,issues,gpu,details,summary);
+    checkView = {targetId:target.id,ring,title,count,track,fill,rows,summary,items:new Map(),groups,groupItems,issues,issueItems:new Map(),gpu,details};
+  }
+  const {ring,title,count,track,fill,rows,summary,items,groups,groupItems,issues,issueItems,gpu} = checkView;
+  const running = !checkError && (!checkState || checkState.phase === 'running');
+  ring.className = 'check-ring' + (running ? ' running' : eligibleDestination() ? '' : ' warning');
+  ring.textContent = running ? '·' : eligibleDestination() ? '✓' : '!';
+  title.textContent = `${target.label} · ${target.context}`;
+  const active = checks.find(c => c.state === 'running');
+  const countText = checkError ? 'Check unavailable' : checkState ? `${done} of ${total} checks complete · ${checkState.phase === 'running' ? active ? `Checking ${active.label}…` : 'Checking…' : checkState.phase === 'complete' ? eligibleDestination() ? 'Baseline checks passed' : 'Needs attention' : 'Cancelled'}` : 'Starting checks…';
+  if (count.textContent !== countText) count.textContent = countText;
+  track.setAttribute('aria-valuemax',String(total));
+  track.setAttribute('aria-valuenow',String(done));
+  fill.style.width = total ? `${100 * done / total}%` : '0%';
+  const grouped = new Map([...checkGroups,'Other checks'].map(label => [label,[]]));
+  for (const c of checks) grouped.get(checkGroup(c.id)).push(c);
+  const other = grouped.get('Other checks');
+  let otherStatus = groupItems.get('Other checks');
+  if (other.length && !otherStatus) {
+    const row = document.createElement('div'); row.className = 'check-group';
+    const name = document.createElement('strong'); name.textContent = 'Other checks';
+    otherStatus = document.createElement('span'); row.append(name,otherStatus); groups.append(row);
+    groupItems.set('Other checks',otherStatus);
+  }
+  if (otherStatus) otherStatus.parentNode.classList.toggle('hidden', !other.length);
+  for (const [label,list] of grouped) {
+    const status = groupItems.get(label);
+    if (!status) continue;
+    const passed = list.filter(c => c.state === 'passed').length;
+    const failed = list.filter(c => c.state === 'failed').length;
+    const warnings = list.filter(c => c.state === 'warning').length;
+    const runningCount = list.filter(c => c.state === 'running').length;
+    const text = `${passed}/${list.length} passed${failed ? ` · ${failed} failed` : ''}${warnings ? ` · ${warnings} warning${warnings === 1 ? '' : 's'}` : ''}${runningCount ? ` · ${runningCount} running` : ''}`;
+    if (status.textContent !== text) status.textContent = text;
+  }
+  const gpuCheck = checks.find(c => c.id === 'gpu' && (c.state === 'warning' || c.state === 'failed'));
+  gpu.classList.toggle('hidden', !gpuCheck);
+  if (gpuCheck) {
+    const message = `GPU support · ${gpuCheck.message || 'Not detected'}. Optional; you can continue if required checks pass.`;
+    if (gpu.textContent !== message) gpu.textContent = message;
+  }
+  const visibleIssues = new Set();
+  for (const [label,list] of grouped) {
+    const problems = list.filter(c => (c.state === 'failed' || c.state === 'warning') && c.id !== 'gpu');
+    if (!problems.length) continue;
+    visibleIssues.add(label);
+    let issue = issueItems.get(label);
+    if (!issue) {
+      const box = document.createElement('details'); box.className = 'check-issue';
+      const heading = document.createElement('summary'); const detailsList = document.createElement('ul'); detailsList.className = 'check-issue-list';
+      box.append(heading,detailsList); issues.append(box);
+      issue = {box,heading,detailsList}; issueItems.set(label,issue);
+    }
+    issue.box.className = `check-issue${problems.some(c => c.state === 'failed') ? ' failed' : ''}`;
+    const failed = problems.filter(c => c.state === 'failed').length;
+    const warning = problems.length - failed;
+    const text = `${label} · ${failed ? `${failed} failed` : ''}${failed && warning ? ', ' : ''}${warning ? `${warning} warning${warning === 1 ? '' : 's'}` : ''} · ${problems[0].label}: ${problems[0].message || problems[0].state}${problems.length > 1 ? ` and ${problems.length - 1} more` : ''} (details)`;
+    if (issue.heading.textContent !== text) issue.heading.textContent = text;
+    // Keep the disclosure and its open state across polls, updating only changed entries.
+    const entries = Array.from(issue.detailsList.children);
+    problems.forEach((c,index) => {
+      const entry = entries[index] || document.createElement('li');
+      const description = `${c.label}: ${c.message || c.state}`;
+      if (entry.textContent !== description) entry.textContent = description;
+      if (!entries[index]) issue.detailsList.append(entry);
+    });
+    entries.slice(problems.length).forEach(entry => entry.remove());
+  }
+  for (const [label,issue] of issueItems) if (!visibleIssues.has(label)) { issue.box.remove(); issueItems.delete(label); }
+  const present = new Set();
+  for (const c of checks) {
+    present.add(c.id);
+    let item = items.get(c.id);
+    if (!item) {
+      const row = document.createElement('div');
+      const icon = document.createElement('span'); icon.className = 'check-icon'; icon.setAttribute('aria-hidden','true');
+      const copy = document.createElement('span'); const name = document.createElement('strong'); const detail = document.createElement('small'); copy.append(name,detail);
+      const severity = document.createElement('span'); severity.className = 'severity'; row.append(icon,copy,severity);
+      item = {row,icon,name,detail,severity,state:null}; items.set(c.id,item);
+    }
+    if (item.state !== c.state) {
+      item.row.className = `check-row ${c.state}`;
+      item.icon.textContent = ({passed:'✓',warning:'!',failed:'×',pending:'·',running:'·'})[c.state] || '·';
+      item.state = c.state;
+    }
+    item.name.textContent = c.label;
+    const detailText = `${c.state} · ${c.message || 'Waiting for result'}`;
+    if (item.detail.textContent !== detailText) item.detail.textContent = detailText;
+    item.severity.textContent = c.severity === 'required' ? 'Required' : 'Advisory';
+  }
+  for (const [id,item] of items) if (!present.has(id)) { item.row.remove(); items.delete(id); }
+  checks.forEach((c,index) => {
+    const row = items.get(c.id).row;
+    if (rows.children[index] !== row) rows.insertBefore(row,rows.children[index] || null);
+  });
+  const summaryText = checkError ? `Could not run checks: ${checkError}. Refresh checks to retry.` : checkState?.phase === 'complete' ? eligibleDestination() ? checks.some(c => c.state === 'warning') ? 'Baseline checks passed with advisory warnings. Review them before continuing; installation rechecks prerequisites.' : 'Baseline checks passed. Ready to continue; installation rechecks prerequisites.' : 'Required checks need attention, or these results have expired. Refresh checks to retry.' : 'Live results will appear as the cluster responds.';
+  if (summary.textContent !== summaryText) summary.textContent = summaryText;
+  badgeStatus(); updateForward();
+}
+function startChecks(target) {
+  invalidateChecks();
+  const epoch = sessionEpoch;
+  renderChecks();
+  // Serialize session creation: a late POST must be cancelled before a replacement starts.
+  startQueue = startQueue.catch(() => {}).then(async () => {
+    if (epoch !== sessionEpoch || started || !selectedTarget() || selectedTarget().id !== target.id) return;
+    try {
+      const result = await request('/api/checks','POST',{target_id:target.id});
+      if (epoch !== sessionEpoch || started || selectedTarget()?.id !== target.id) {
+        if (result?.check_id) await request('/api/checks/cancel','POST',{check_id:result.check_id}).catch(() => {});
+        return;
+      }
+      checkId = result.check_id;
+      pollChecks(epoch, checkId);
+    } catch (e) { if (epoch === sessionEpoch && !started) { checkError = e.message; renderChecks(); } }
+  });
+}
+async function pollChecks(epoch, id) {
+  if (epoch !== sessionEpoch || started) return;
+  try {
+    const state = await request(`/api/checks/${encodeURIComponent(id)}`);
+    if (epoch !== sessionEpoch || id !== checkId || state.check_id !== id || started || selectedTarget()?.id !== state.target_id) return;
+    checkState = state;
+    if (state.phase === 'complete') completedAt = Date.now();
+    if (state.phase === 'cancelled') checkError = 'Check was cancelled';
+    renderChecks();
+    if (state.phase === 'running') setTimeout(() => pollChecks(epoch,id), 650);
+  } catch (e) { if (epoch === sessionEpoch && id === checkId && !started) { checkError = e.message; checkState = null; completedAt = 0; renderChecks(); } }
+}
+const value = name => $('form').elements[name].value;
+function toggle() {
+  const managed = value('storage_mode') === 'managed-nfs', nodeport = value('access_mode') === 'nodeport';
+  $('managed').classList.toggle('hidden', !managed); $('external').classList.toggle('hidden', managed); $('port').classList.toggle('hidden', !nodeport);
+  $('lb-notice').classList.toggle('hidden', value('access_mode') !== 'loadbalancer');
+  $('lb-review-notice').classList.toggle('hidden', value('access_mode') !== 'loadbalancer');
+  $('k3s-note').classList.toggle('hidden', mode() !== 'single-node');
+  $('upload-options').classList.toggle('hidden', mode() !== 'upload');
+  for (const name of ['storage_size']) $('form').elements[name].required = managed;
+  for (const name of ['nfs_server','nfs_path']) $('form').elements[name].required = !managed;
+  $('form').elements.backend_port.required = nodeport;
+  renderStorage();
+  renderLB();
+  updateForward();
+}
+function show(target) {
+  const changed = step !== target;
+  step = target;
+  names.forEach((_, i) => $('step-' + i).classList.toggle('hidden', i !== step));
+  for (const button of $('steps').querySelectorAll('button')) {
+    const i = Number(button.dataset.step);
+    button.disabled = started ? !(installPhase === 'succeeded' && (i === 5 || i === 6)) : i > furthest;
+    if (i === step) button.setAttribute('aria-current','step'); else button.removeAttribute('aria-current');
+  }
+  $('mobile-label').textContent = `Step ${step + 1} of ${names.length} · ${names[step]}`;
+  $('mobile-fill').style.width = `${(step + 1) / names.length * 100}%`;
+  $('actions').classList.toggle('hidden', step >= 5);
+  $('back').classList.toggle('hidden', step === 0);
+  $('next').classList.toggle('hidden', step >= 4);
+  $('start').classList.toggle('hidden', step !== 4);
+  updateForward();
+  if (changed && !$('wizard').classList.contains('hidden')) $('title-' + step).focus();
+}
+function invalid(name, message) {
+  error(message); const field = $('form').elements[name]; field.setAttribute('aria-invalid','true'); field.focus(); return false;
+}
+function validate(index) {
+  error('');
+  if (index === 0 && (uploading || discovering || !eligibleDestination())) { if (selectedTarget()) renderChecks(); error(destination()?.kind === 'context' ? 'Complete fresh prerequisite checks for this context before continuing. Return to Installation destination and refresh checks to retry.' : 'Choose an installation destination and context before continuing.'); return false; }
+  for (const name of ['server_name','backend_port','storage_size','storage_class','nfs_server','nfs_path','admin_username','admin_email','admin_password','admin_confirm']) $('form').elements[name].removeAttribute('aria-invalid');
+  const required = (name, label) => { const text = value(name).trim(); return text.length > 0 && text.length <= 255 && !/[\r\n\0]/.test(text) || invalid(name, `${label} must be present, single-line, and at most 255 characters.`); };
+  if (index === 1) {
+    if (!required('server_name','Server name')) return false;
+    if (value('access_mode') === 'nodeport' && (!/^\d+$/.test(value('backend_port')) || Number(value('backend_port')) < 30000 || Number(value('backend_port')) > 32767)) return invalid('backend_port','Gateway NodePort must be between 30000 and 32767.');
+    if (!lbEligible()) { renderLB(); error(destination()?.kind === 'single-node' ? 'LoadBalancer cannot be validated before local k3s exists. Choose an existing configured cluster, NodePort, or port-forward.' : 'Test LoadBalancer on this cluster before continuing. The result must be fresh, including address and cleanup; retry the test if expired or failed.'); return false; }
+  }
+  if (index === 2) {
+    if (value('storage_mode') === 'managed-nfs') {
+      if (!required('storage_size','Storage size')) return false;
+      if (!/^[1-9][0-9]*(?:Ki|Mi|Gi|Ti|Pi|Ei)?$/.test(value('storage_size').trim())) return invalid('storage_size','Enter a valid storage size, such as 500Gi or 1Ti.');
+      const cls = value('storage_class').trim();
+      if (cls && (cls.length > 255 || !/^[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?$/.test(cls))) return invalid('storage_class','Enter a valid StorageClass name.');
+    } else {
+      if (!required('nfs_server','NFS server') || !required('nfs_path','NFS export path')) return false;
+      if (!/^[a-zA-Z0-9.:-]+$/.test(value('nfs_server').trim())) return invalid('nfs_server','Enter a valid NFS server hostname or address.');
+      if (!value('nfs_path').trim().startsWith('/') || /[,\\{}]/.test(value('nfs_path'))) return invalid('nfs_path','Enter an absolute NFS export path without commas, backslashes, or braces.');
+    }
+  }
+  if (index === 3) {
+    if (!required('admin_username','Username') || !required('admin_email','Email address')) return false;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value('admin_email').trim())) return invalid('admin_email','Enter a valid email address.');
+    if (value('admin_password').length < 8 || value('admin_password').length > 1024) return invalid('admin_password','Password must be 8–1024 characters.');
+    if (value('admin_password') !== value('admin_confirm')) return invalid('admin_confirm','Passwords do not match.');
+  }
+  return true;
+}
+function review() {
+  const form = new FormData($('form'));
+  choice = {grafana:form.has('grafana'), destination:destination()};
+  // All backend fields are always sent, including inactive conditional fields.
+  for (const name of ['server_name','storage_mode','storage_size','storage_class','nfs_server','nfs_path','access_mode','backend_port','admin_username','admin_email','admin_password','admin_confirm']) choice[name] = value(name);
+  choice.nfs_server = choice.nfs_server.trim(); choice.nfs_path = choice.nfs_path.trim();
+  const target = selectedTarget();
+  const rows = [
+    ['Target mode',choice.destination.kind === 'single-node' ? 'Local k3s · this machine' : 'Existing Kubernetes context'],
+    ['Source',target ? ({env:'Environment kubeconfig',default:'Default kubeconfig',local:'Local kubeconfig',k3s:'Local k3s kubeconfig',upload:'Uploaded kubeconfig'}[target.source]) : 'Local installation'],
+    ['Context',target ? `${target.label} · ${target.context}` : 'New single-node k3s'],
+    ['Server',choice.server_name],
+    ['Storage',choice.storage_mode === 'managed-nfs' ? `Managed NFS · ${choice.storage_size} · ${choice.storage_class || 'cluster default'}` : `External NFS · ${choice.nfs_server}:${choice.nfs_path}`],
+    ['Dashboard',choice.access_mode === 'nodeport' ? `Gateway NodePort ${choice.backend_port}` : choice.access_mode === 'loadbalancer' ? 'LoadBalancer · gateway service port 8080 · external address assigned by load balancer' : 'Port-forward only · gateway service port 8080'],
+    ['Administrator',`${choice.admin_username} · ${choice.admin_email}`],
+    ['Core observability','Fluent Bit, VictoriaLogs, VictoriaMetrics'],
+    ['Grafana',choice.grafana ? 'Included' : 'Not included']
+  ];
+  $('summary').textContent = '';
+  for (const [label, content] of rows) { const row = document.createElement('div'); const dt = document.createElement('dt'); const dd = document.createElement('dd'); dt.textContent = label; dd.textContent = content; row.append(dt,dd); $('summary').append(row); }
+}
+function navigate(target) {
+  if (started || submitting || target > furthest + 1 || target < 0 || target > 4) return;
+  if (storagePending && target !== 3) storageIntent = false;
+  error('');
+  if (target > step) {
+    for (let i = 0; i < target; i++) {
+      if (!validate(i)) { show(i); validate(i); return; }
+      if (i === 2 && !storageEligible()) {
+        if (step === 2 && target === 3 && !storagePending) startStorage();
+        else { show(2); error('Verify external NFS on the selected cluster: press Continue to run the storage check.'); }
+        return;
+      }
+    }
+    if (target === 4) review();
+    furthest = Math.max(furthest, target);
+  }
+  show(target);
+}
+function clearSecrets() {
+  for (const name of ['admin_password','admin_confirm']) $('form').elements[name].value = '';
+  if (choice) { choice.admin_password = ''; choice.admin_confirm = ''; choice = null; }
+}
+let followEvents = true;
+const eventPane = $('events');
+const logControls = document.createElement('div'); logControls.className = 'finished-controls';
+const downloadProgress = document.createElement('a'); downloadProgress.className = 'finished-link hidden';
+downloadProgress.href = '/api/install-log'; downloadProgress.download = 'kubarr-install.log'; downloadProgress.textContent = 'Download installation log';
+const returnFinished = document.createElement('button'); returnFinished.type = 'button'; returnFinished.className = 'button hidden'; returnFinished.textContent = '← Return to finished';
+logControls.append(downloadProgress, returnFinished); $('step-5').append(logControls);
+returnFinished.onclick = () => { if (installPhase === 'succeeded') show(6); };
+$('view-log').onclick = () => { if (installPhase === 'succeeded') show(5); };
+// Never infer an access URL from installation messages or the result string.
+function dashboardURL(raw) {
+  if (typeof raw !== 'string' || !/^https?:\/\/[^\s\\<>\x00-\x1f\x7f]+$/i.test(raw)) return null;
+  try {
+    const parsed = new URL(raw);
+    return ['http:', 'https:'].includes(parsed.protocol) && parsed.hostname && !parsed.username && !parsed.password ? parsed.href : null;
+  } catch { return null; }
+}
+function renderAccess(access) {
+  const details = $('access-details'); details.textContent = '';
+  const kind = access?.kind;
+  const label = document.createElement('p');
+  label.textContent = kind === 'port-forward' ? 'Port-forward access: run the command below before opening the dashboard. The loopback address works on the machine running the forward; if using a remote server, use SSH forwarding to reach it from your browser.' : kind === 'loadbalancer' && access?.pending ? 'Waiting for a LoadBalancer address. Refresh after your cluster assigns one; a successful installation does not guarantee an external address.' : kind === 'nodeport' ? 'Gateway NodePort dashboard address (reachability is not automatically verified):' : kind === 'loadbalancer' ? 'LoadBalancer dashboard address (reachability is not automatically verified):' : 'Dashboard address is not available yet. Check the access instructions or refresh the address.';
+  details.append(label);
+  if (['nodeport','port-forward','loadbalancer'].includes(kind) && Array.isArray(access.instructions) && access.instructions.length) {
+    const list = document.createElement('ol'); list.className = 'finished-instructions';
+    for (const instruction of access.instructions) { const item = document.createElement('li'); item.textContent = String(instruction); list.append(item); }
+    details.append(list);
+  }
+  const url = ['nodeport','port-forward','loadbalancer'].includes(kind) ? dashboardURL(access?.url) : null;
+  if (url && !access.pending) {
+    const visible = document.createElement('a'); visible.className = 'finished-link'; visible.href = url; visible.target = '_blank'; visible.rel = 'noopener noreferrer'; visible.textContent = url;
+    const action = document.createElement('a'); action.className = 'button primary'; action.href = url; action.target = '_blank'; action.rel = 'noopener noreferrer'; action.textContent = kind === 'port-forward' ? 'Open dashboard after forwarding' : 'Open dashboard';
+    const controls = document.createElement('div'); controls.className = 'finished-controls'; controls.append(action); details.append(visible, controls);
+  } else if (!(kind === 'loadbalancer' && access?.pending)) {
+    const unavailable = document.createElement('p'); unavailable.textContent = 'No safe dashboard URL is available. Follow the access instructions and refresh the address.'; details.append(unavailable);
+  }
+}
+$('refresh-access').onclick = async () => {
+  if (installPhase !== 'succeeded') return;
+  const epoch = ++accessEpoch, phaseEpoch = statusEpoch;
+  $('refresh-access').disabled = true; $('access-error').textContent = '';
+  try {
+    const access = await request('/api/access');
+    if (epoch === accessEpoch && phaseEpoch === statusEpoch && installPhase === 'succeeded') renderAccess(access);
+  } catch {
+    if (epoch === accessEpoch && phaseEpoch === statusEpoch && installPhase === 'succeeded') $('access-error').textContent = 'Could not refresh the dashboard address. Try again.';
+  } finally { if (epoch === accessEpoch) $('refresh-access').disabled = false; }
+};
+let pendingActivity = null;
+function nearEventBottom() { return eventPane.scrollHeight - eventPane.clientHeight - eventPane.scrollTop <= 32; }
+function setFollowEvents(enabled) {
+  followEvents = enabled;
+  $('follow-events').textContent = enabled ? 'Pause follow' : 'Resume follow';
+  $('follow-events').setAttribute('aria-pressed', String(enabled));
+}
+eventPane.onscroll = () => { if (followEvents && !nearEventBottom()) setFollowEvents(false); };
+$('follow-events').onclick = () => {
+  setFollowEvents(!followEvents);
+  if (followEvents) {
+    if (pendingActivity !== null) eventPane.textContent = pendingActivity;
+    pendingActivity = null;
+    eventPane.scrollTop = eventPane.scrollHeight;
+  }
+};
+function renderActivity(state) {
+  const events = state.events;
+  const content = events.length ? events.join('\n') : 'Waiting for updates…';
+  if (eventPane.textContent !== content) {
+    // Detect manual scrolling even if a scroll event has not fired yet.
+    if (followEvents && !nearEventBottom()) setFollowEvents(false);
+    if (followEvents) {
+      eventPane.textContent = content;
+      eventPane.scrollTop = eventPane.scrollHeight;
+    }
+  }
+  // Freeze the visible window as the server rolls over its 500-event history.
+  if (!followEvents) pendingActivity = content === eventPane.textContent ? null : content;
+  const count = `Recent activity · ${events.length} ${events.length === 1 ? 'event' : 'events'} (up to 500 retained)${pendingActivity !== null && !followEvents ? ' · newer events available' : ''}`;
+  if ($('activity-count').textContent !== count) $('activity-count').textContent = count;
+  const latest = `Latest activity: ${events.length ? events[events.length - 1] : $('phase').textContent}`;
+  if ($('latest-activity').textContent !== latest) $('latest-activity').textContent = latest;
+}
+async function poll() {
+  const epoch = ++statusEpoch;
+  try {
+    const state = await request('/api/status');
+    if (epoch !== statusEpoch) return;
+    // A ready snapshot cannot settle an in-flight POST; wait for its response.
+    if (state.phase === 'ready' && submitting) return;
+    $('reconnect').classList.add('hidden');
+    error('');
+    if (state.phase !== 'ready') {
+      invalidateChecks(); invalidateLB();
+      started = true; submitting = false; startFailure = ''; clearSecrets();
+      const previousPhase = installPhase; installPhase = state.phase;
+      downloadProgress.classList.remove('hidden');
+      returnFinished.classList.toggle('hidden', state.phase !== 'succeeded');
+      if (state.phase === 'succeeded') {
+        if (previousPhase !== 'succeeded') { renderAccess(state.access); $('access-error').textContent = ''; }
+        show(step === 5 && previousPhase === 'succeeded' ? 5 : 6);
+      } else { ++accessEpoch; show(5); }
+      $('phase').textContent = {running:'Installing Kubarr…',succeeded:'Kubarr is ready',failed:'Installation failed'}[state.phase] || 'Installation status';
+      $('status-description').textContent = state.phase === 'running' ? 'This may take a few minutes. Keep the CLI running; closing this tab does not stop installation.' : state.phase === 'succeeded' ? 'Installation completed. Follow the access instructions in the activity log.' : 'Check the activity log and CLI output for details.';
+      renderActivity(state);
+      $('result').textContent = state.result || '';
+    } else if (startFailure) { show(startFailureStep); error(startFailure); }
+    else if (step === 5) show(0);
+    if (state.phase === 'running') setTimeout(poll, 1200);
+  } catch { if (epoch !== statusEpoch) return; show(5); error('Lost connection to the installer. Reconnect when the CLI is available.'); $('reconnect').classList.remove('hidden'); }
+}
+async function init() {
+  const invitation = location.hash.length > 1 ? location.hash.slice(1) : '';
+  if (location.hash) history.replaceState(null, '', location.pathname);
+  try {
+    // An existing cookie takes precedence over the printed one-use invitation.
+    try { csrf = (await request('/api/session')).csrf; }
+    catch { if (!invitation) throw Error('No valid session or invitation'); csrf = (await request('/api/redeem','POST',{token:invitation})).csrf; }
+    $('auth').classList.add('hidden'); $('wizard').classList.remove('hidden');
+    refresh(); discover(); poll();
+  } catch { $('auth').textContent = 'This link has expired or is invalid. Restart the CLI to get a new invitation link.'; }
+}
+function destinationChanged() { ++destinationEpoch; invalidateLB(); invalidateStorage(); invalidateChecks(); refresh(); toggle(); }
+for (const name of ['destination_mode','access_mode','storage_mode']) for (const field of document.getElementsByName(name)) field.onchange = name === 'destination_mode' ? destinationChanged : name === 'storage_mode' ? () => { invalidateStorage(); toggle(); } : name === 'access_mode' ? () => { invalidateLB(); toggle(); } : toggle;
+for (const name of ['nfs_server','nfs_path']) $('form').elements[name].oninput = invalidateStorage;
+$('upload').onclick = async () => {
+  if (uploading || started || submitting || mode() !== 'upload') return;
+  const file = $('kubeconfig_file').files?.[0];
+  if (!file) { $('upload-message').textContent = 'Choose a kubeconfig file first.'; return; }
+  if (file.size > 256 * 1024) { $('upload-message').textContent = 'Kubeconfig exceeds 256 KiB.'; return; }
+  uploading = true; const epoch = ++destinationEpoch;
+  $('upload').disabled = true; $('upload-message').textContent = 'Uploading kubeconfig…'; updateForward();
+  try {
+    const text = await file.text();
+    if (epoch !== destinationEpoch) return;
+    if (new TextEncoder().encode(text).length > 256 * 1024) throw Error('Kubeconfig exceeds 256 KiB.');
+    const result = await request('/api/targets/upload','POST',{kubeconfig:text});
+    invalidateLB();
+    invalidateStorage();
+    ++uploadVersion;
+    targets = mergeTargets(targets, result.targets.filter(t => t.source === 'upload'));
+    $('kubeconfig_file').value = ''; listTargets();
+    if (epoch === destinationEpoch) {
+      refresh();
+      $('upload-message').textContent = result.targets.some(t => t.source === 'upload') ? 'Select an uploaded context.' : 'No usable contexts in this kubeconfig.';
+    }
+  } catch { if (epoch === destinationEpoch) $('upload-message').textContent = 'Upload failed. Check that the kubeconfig is at most 256 KiB and uses an embedded token or client certificate/key (no exec, auth-provider or file references). Use HTTPS when uploading credentials.'; }
+  finally { uploading = false; $('upload').disabled = false; updateForward(); }
+};
+for (let i = 0; i < names.length; i++) $('title-' + i).setAttribute('tabindex', '-1');
+toggle(); show(0);
+for (const button of $('steps').querySelectorAll('button')) button.onclick = () => {
+  const target = Number(button.dataset.step);
+  if (installPhase === 'succeeded' && (target === 5 || target === 6)) show(target);
+  else navigate(target);
+};
+$('refresh').onclick = refresh;
+$('lb-test').onclick = startLB;
+$('back').onclick = () => { if (storagePending) invalidateStorage(); if (step === 1 && lbPending) invalidateLB(); navigate(step - 1); };
+$('next').onclick = () => navigate(step + 1);
+$('form').onsubmit = event => event.preventDefault();
+$('start').onclick = async () => {
+  if (started || submitting) return;
+  for (let i = 0; i < 4; i++) {
+    if (!validate(i)) { show(i); validate(i); return; }
+    if (i === 2 && !storageEligible()) { show(2); error('External NFS verification expired or changed. Press Continue to run the storage check again.'); return; }
+  }
+  review(); submitting = true; ++statusEpoch; startFailure = ''; startFailureStep = 4; $('start').disabled = true; error('');
+  try { await request('/api/start','POST',choice); submitting = false; started = true; clearSecrets(); show(5); poll(); }
+  catch (e) { if (started) return; submitting = false; const lbConflict = e.status === 409 && /load\s*balancer/i.test(e.message); const storageConflict = e.status === 409 && !lbConflict && /storage|nfs/i.test(e.message); startFailureStep = lbConflict ? 1 : storageConflict ? 2 : e.status === 409 ? 0 : 4; startFailure = `Could not confirm installation: ${e.message}${lbConflict ? '. Return to Server & access and retry Test LoadBalancer.' : storageConflict ? '. Return to Storage and press Continue to retry the NFS check.' : startFailureStep === 0 ? '. Return to Installation destination and refresh checks before retrying.' : ''}`; if (startFailureStep === 0) { invalidateChecks(); checkError = 'Installer rejected these prerequisite results'; renderChecks(); } if (storageConflict) invalidateStorage(); if (lbConflict) invalidateLB(); error(startFailure); await poll(); if (!started && step !== 5) { show(startFailureStep); error(startFailure); } }
+};
+$('reconnect').onclick = poll;
+if (location.hostname !== '127.0.0.1' && location.hostname !== 'localhost') $('warning').classList.remove('hidden');
+init();
+</script></body></html>

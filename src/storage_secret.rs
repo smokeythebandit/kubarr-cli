@@ -1,11 +1,13 @@
-use std::io::Write;
-use std::process::{Command, Stdio};
-
 use crate::install_events;
 use crate::style::{paint, status_label, BLUE, CYAN, DIM};
 use crate::types::{BootstrapStorageOptions, StorageModeOption, STORAGE_SECRET_NAME};
+use crate::util::external_command;
 
-pub fn apply_storage_secret(namespace: &str, storage: &BootstrapStorageOptions, dry_run: bool) {
+pub fn apply_storage_secret(
+    namespace: &str,
+    storage: &BootstrapStorageOptions,
+    dry_run: bool,
+) -> Result<(), String> {
     let config_json = storage_secret_json(storage);
     let indented = config_json
         .lines()
@@ -15,7 +17,7 @@ pub fn apply_storage_secret(namespace: &str, storage: &BootstrapStorageOptions, 
     let yaml = format!(
         "apiVersion: v1\nkind: Secret\nmetadata:\n  name: {STORAGE_SECRET_NAME}\n  namespace: {namespace}\ntype: Opaque\nstringData:\n  config.json: |-\n{indented}\n"
     );
-    run_kubectl_apply_yaml(&yaml, dry_run);
+    run_kubectl_apply_yaml(&yaml, dry_run)
 }
 
 fn storage_secret_json(storage: &BootstrapStorageOptions) -> String {
@@ -51,46 +53,40 @@ fn external_json(server: &str, export_path: &str) -> (&'static str, String) {
     )
 }
 
-fn run_kubectl_apply_yaml(yaml: &str, dry_run: bool) {
+fn run_kubectl_apply_yaml(yaml: &str, dry_run: bool) -> Result<(), String> {
     if dry_run {
         if install_events::emit("[PLAN] kubectl apply -f -") {
             for line in yaml.lines() {
                 install_events::emit(format!("     {line}"));
             }
-            return;
+            return Ok(());
         }
         println!("   {} kubectl apply -f -", status_label("plan", CYAN));
         for line in yaml.lines() {
             println!("   {}", paint(line, DIM));
         }
-        return;
+        return Ok(());
     }
     if install_events::emit("[RUN] kubectl apply -f -") {
-        apply_yaml(yaml);
-        return;
+        return apply_yaml(yaml);
     }
     println!("   {} kubectl apply -f -", status_label("run", BLUE));
-    apply_yaml(yaml);
+    apply_yaml(yaml)
 }
 
-fn apply_yaml(yaml: &str) {
-    let mut child = Command::new("kubectl")
-        .args(["apply", "-f", "-"])
-        .stdin(Stdio::piped())
-        .spawn()
-        .unwrap_or_else(|err| panic!("failed to run kubectl apply: {err}"));
-    child
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(yaml.as_bytes())
-        .unwrap();
-    let status = child
-        .wait()
-        .unwrap_or_else(|err| panic!("failed to wait for kubectl apply: {err}"));
+fn apply_yaml(yaml: &str) -> Result<(), String> {
+    let mut command = external_command("kubectl");
+    command.args(["apply", "-f", "-"]);
+    let status = crate::util::run_command_with_progress(
+        &mut command,
+        "kubectl apply",
+        Some(yaml.as_bytes()),
+        Some(crate::install_events::Operation::StorageSecret),
+    )?;
     if !status.success() {
-        std::process::exit(status.code().unwrap_or(1));
+        return Err(format!("kubectl apply failed ({status})"));
     }
+    Ok(())
 }
 
 fn json_escape(value: &str) -> String {

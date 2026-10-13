@@ -1,11 +1,10 @@
 use std::process::Command;
 
-use dialoguer::Password;
+use dialoguer::{theme::ColorfulTheme, Password};
 
 use crate::style::{ok, status_label, BLUE};
 use crate::types::DATABASE_NAMESPACE;
 use crate::util::{ensure_tool, has_help, next_value};
-use crate::wizard_prompts::wizard_theme;
 
 pub fn users(args: Vec<String>) {
     if has_help(&args) {
@@ -171,7 +170,7 @@ fn run_psql(namespace: &str, sql: &str) {
 }
 
 fn prompt_password() -> String {
-    Password::with_theme(&wizard_theme())
+    Password::with_theme(&ColorfulTheme::default())
         .with_prompt("Password")
         .with_confirmation("Confirm password", "passwords do not match")
         .validate_with(|input: &String| {

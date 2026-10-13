@@ -54,6 +54,8 @@ pub const REQUIRED_API_RESOURCES: &[ApiRequirement] = &[
     },
 ];
 
+// Baseline sample scopes shared by web checks and installer checks. Passing
+// these is not proof of RBAC in every namespace created by Helm charts.
 pub const REQUIRED_PERMISSIONS: &[PermissionRequirement] = &[
     PermissionRequirement {
         verb: "create",

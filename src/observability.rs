@@ -1,3 +1,4 @@
+use crate::install_events::Operation;
 use crate::style::{detail, step};
 use crate::types::{
     BootstrapOptions, StorageModeOption, BOOTSTRAP_RELEASE_NAMESPACE, FLUENT_BIT_CHART_REF,
@@ -5,9 +6,10 @@ use crate::types::{
     GRAFANA_RELEASE, VICTORIALOGS_CHART_REF, VICTORIALOGS_NAMESPACE, VICTORIALOGS_RELEASE,
     VICTORIAMETRICS_CHART_REF, VICTORIAMETRICS_NAMESPACE, VICTORIAMETRICS_RELEASE,
 };
-use crate::util::{chart_ref, ensure_tool, run_or_print};
+use crate::util::{chart_ref, check_tool, try_run_or_print_progress};
+use std::path::Path;
 
-pub fn install_fluent_bit(options: &BootstrapOptions) {
+pub fn install_fluent_bit(options: &BootstrapOptions) -> Result<(), String> {
     step("Fluent Bit", "installing log collector with Helm");
     let mut set_values = storage_set_values(options);
     set_values.extend(indexed_set_values(
@@ -39,10 +41,10 @@ pub fn install_fluent_bit(options: &BootstrapOptions) {
         &set_values,
         false,
         options.install.dry_run,
-    );
-    patch_fluent_bit_readiness(options.install.dry_run);
+    )?;
+    patch_fluent_bit_readiness(options.install.dry_run)?;
     if options.install.wait {
-        run_or_print(
+        try_run_or_print_progress(
             "kubectl",
             &[
                 "rollout",
@@ -54,11 +56,13 @@ pub fn install_fluent_bit(options: &BootstrapOptions) {
             ],
             options.install.dry_run,
             false,
-        );
+            Some(Operation::FluentBitRollout),
+        )?;
     }
+    Ok(())
 }
 
-pub fn install_victoriametrics(options: &BootstrapOptions) {
+pub fn install_victoriametrics(options: &BootstrapOptions) -> Result<(), String> {
     step("VictoriaMetrics", "installing metrics store with Helm");
     let mut set_values = indexed_set_values(
         "networkPolicy.ingressFrom",
@@ -91,9 +95,9 @@ pub fn install_victoriametrics(options: &BootstrapOptions) {
         &set_values,
         false,
         options.install.dry_run,
-    );
+    )?;
     if options.install.wait {
-        run_or_print(
+        try_run_or_print_progress(
             "kubectl",
             &[
                 "rollout",
@@ -105,11 +109,13 @@ pub fn install_victoriametrics(options: &BootstrapOptions) {
             ],
             options.install.dry_run,
             false,
-        );
+            Some(Operation::VictoriaMetricsRollout),
+        )?;
     }
+    Ok(())
 }
 
-pub fn install_victorialogs(options: &BootstrapOptions) {
+pub fn install_victorialogs(options: &BootstrapOptions) -> Result<(), String> {
     step("VictoriaLogs", "installing log store with Helm");
     let mut set_values = indexed_set_values(
         "networkPolicy.ingressFrom",
@@ -124,9 +130,9 @@ pub fn install_victorialogs(options: &BootstrapOptions) {
         &set_values,
         false,
         options.install.dry_run,
-    );
+    )?;
     if options.install.wait {
-        run_or_print(
+        try_run_or_print_progress(
             "kubectl",
             &[
                 "rollout",
@@ -138,11 +144,13 @@ pub fn install_victorialogs(options: &BootstrapOptions) {
             ],
             options.install.dry_run,
             false,
-        );
+            Some(Operation::VictoriaLogsRollout),
+        )?;
     }
+    Ok(())
 }
 
-pub fn install_grafana(options: &BootstrapOptions) {
+pub fn install_grafana(options: &BootstrapOptions) -> Result<(), String> {
     step("Grafana", "installing optional dashboards with Helm");
     install_chart(
         "grafana",
@@ -152,9 +160,9 @@ pub fn install_grafana(options: &BootstrapOptions) {
         &[],
         true,
         options.install.dry_run,
-    );
+    )?;
     if options.install.wait {
-        run_or_print(
+        try_run_or_print_progress(
             "kubectl",
             &[
                 "rollout",
@@ -166,8 +174,10 @@ pub fn install_grafana(options: &BootstrapOptions) {
             ],
             options.install.dry_run,
             false,
-        );
+            Some(Operation::GrafanaRollout),
+        )?;
     }
+    Ok(())
 }
 
 fn indexed_set_values(key: &str, values: &[&str]) -> Vec<(String, String)> {
@@ -179,13 +189,10 @@ fn indexed_set_values(key: &str, values: &[&str]) -> Vec<(String, String)> {
 }
 
 fn storage_set_values(options: &BootstrapOptions) -> Vec<(String, String)> {
-    let mut values = vec![
-        (
-            "storage.media.existingClaim".to_string(),
-            "media-data".to_string(),
-        ),
-        ("storage.media.mountPath".to_string(), "/data".to_string()),
-    ];
+    let mut values = vec![(
+        "storage.media.existingClaim".to_string(),
+        "media-data".to_string(),
+    )];
 
     match &options.storage.mode {
         StorageModeOption::ManagedNfs(storage) => {
@@ -206,8 +213,8 @@ fn storage_set_values(options: &BootstrapOptions) -> Vec<(String, String)> {
     values
 }
 
-fn patch_fluent_bit_readiness(dry_run: bool) {
-    run_or_print(
+fn patch_fluent_bit_readiness(dry_run: bool) -> Result<(), String> {
+    try_run_or_print_progress(
         "kubectl",
         &[
             "patch",
@@ -220,7 +227,8 @@ fn patch_fluent_bit_readiness(dry_run: bool) {
         ],
         dry_run,
         false,
-    );
+        Some(Operation::FluentBitPatch),
+    )
 }
 
 fn install_chart(
@@ -231,11 +239,25 @@ fn install_chart(
     set_values: &[(String, String)],
     wait: bool,
     dry_run: bool,
-) {
+) -> Result<(), String> {
     if !dry_run {
-        ensure_tool("helm");
+        check_tool("helm")?;
     }
-    let chart = chart_ref(chart_name, chart);
+    // Logging charts can be validated locally before their OCI revisions are
+    // published, without redirecting unrelated bootstrap charts.
+    let chart = if matches!(chart_name, "fluent-bit" | "victorialogs") {
+        if let Some(root) = std::env::var_os("KUBARR_LOGGING_CHARTS_DIR") {
+            let path = Path::new(&root).join(chart_name);
+            if !path.join("Chart.yaml").is_file() {
+                return Err(format!("logging chart missing at {}", path.display()));
+            }
+            path.display().to_string()
+        } else {
+            chart_ref(chart_name, chart)
+        }
+    } else {
+        chart_ref(chart_name, chart)
+    };
     detail("release", release);
     detail("namespace", namespace);
     detail("chart", &chart);
@@ -261,5 +283,12 @@ fn install_chart(
     }
 
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    run_or_print("helm", &refs, dry_run, false);
+    let operation = match chart_name {
+        "fluent-bit" => Operation::FluentBit,
+        "victorialogs" => Operation::VictoriaLogs,
+        "victoriametrics" => Operation::VictoriaMetrics,
+        "grafana" => Operation::Grafana,
+        _ => return Err("unknown observability chart".into()),
+    };
+    try_run_or_print_progress("helm", &refs, dry_run, false, Some(operation))
 }

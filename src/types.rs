@@ -32,13 +32,20 @@ pub const VICTORIALOGS_RELEASE: &str = "victorialogs";
 pub struct InstallOptions {
     pub namespace: String,
     pub release: String,
-    pub frontend_node_port: Option<u16>,
-    pub backend_node_port: Option<u16>,
-    pub values_files: Vec<String>,
+    pub web_access: WebAccess,
+    /// Web LoadBalancer probe's chart version; pin the gateway install to it.
+    pub gateway_chart_version: Option<String>,
     pub server_name: Option<String>,
     pub admin: Option<AdminUser>,
     pub wait: bool,
     pub dry_run: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WebAccess {
+    NodePort(u16),
+    LoadBalancer,
+    PortForward,
 }
 
 pub struct AdminUser {
@@ -51,8 +58,6 @@ pub struct BootstrapOptions {
     pub cluster_mode: ClusterMode,
     pub install: InstallOptions,
     pub storage: BootstrapStorageOptions,
-    pub skip_cluster_check: bool,
-    pub interactive: bool,
     pub grafana_enabled: bool,
 }
 
@@ -69,6 +74,19 @@ pub struct StorageOptions {
     pub storage_class: Option<String>,
     pub wait: bool,
     pub dry_run: bool,
+}
+
+impl StorageOptions {
+    pub fn default_managed(dry_run: bool) -> Self {
+        Self {
+            namespace: MANAGED_NFS_NAMESPACE.into(),
+            release: MANAGED_NFS_RELEASE.into(),
+            size: "1Ti".into(),
+            storage_class: None,
+            wait: true,
+            dry_run,
+        }
+    }
 }
 
 pub struct ExternalNfsOptions {

@@ -1,14 +1,15 @@
+use crate::install_events::Operation;
 use crate::style::{detail, step};
 use crate::types::{
     BootstrapOptions, StorageModeOption, BOOTSTRAP_RELEASE_NAMESPACE, DATABASE_CHART_REF,
     DATABASE_NAMESPACE, DATABASE_RELEASE,
 };
-use crate::util::{chart_ref, ensure_tool, run_or_print};
+use crate::util::{chart_ref, check_tool, try_run_or_print_progress};
 
-pub fn install_database(options: &BootstrapOptions) {
+pub fn install_database(options: &BootstrapOptions) -> Result<(), String> {
     step("Database", "installing PostgreSQL with Helm");
     if !options.install.dry_run {
-        ensure_tool("helm");
+        check_tool("helm")?;
     }
     detail("release", DATABASE_RELEASE);
     detail("namespace", DATABASE_NAMESPACE);
@@ -34,10 +35,16 @@ pub fn install_database(options: &BootstrapOptions) {
     }
 
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    run_or_print("helm", &refs, options.install.dry_run, false);
+    try_run_or_print_progress(
+        "helm",
+        &refs,
+        options.install.dry_run,
+        false,
+        Some(Operation::PostgreSql),
+    )?;
 
     if options.install.wait {
-        run_or_print(
+        try_run_or_print_progress(
             "kubectl",
             &[
                 "rollout",
@@ -49,8 +56,10 @@ pub fn install_database(options: &BootstrapOptions) {
             ],
             options.install.dry_run,
             false,
-        );
+            Some(Operation::PostgreSqlRollout),
+        )?;
     }
+    Ok(())
 }
 
 fn storage_set_values(options: &BootstrapOptions) -> Vec<(String, String)> {
