@@ -83,8 +83,10 @@ The Kubarr repository's normal CI/CD pipeline builds the CLI alongside the appli
 
 After the normal CI gates pass, `.github/workflows/publish.yml` publishes these artifacts to this repository's GitHub Releases:
 
-- Successful `main` builds update the rolling [`kubarr-cli-latest` release](https://github.com/smokeythebandit/Kubarr/releases/tag/kubarr-cli-latest), used by `https://kubarr.com/install.sh`.
+- Successful `main` builds publish a commit-specific `cli-<commit>` snapshot as the [latest release](https://github.com/smokeythebandit/Kubarr/releases/latest), used by `https://kubarr.com/install.sh`.
 - `v*` tags attach the CLI archives and checksums to the matching versioned release after release E2E and acceptance tests pass.
 - Pull requests build the CLI without publishing it.
 
 The assets are `kubarr-linux-x86_64.tar.gz` and `kubarr-linux-aarch64.tar.gz`, each with a matching `.sha256` file. The website hosts the installer script and downloads these Kubarr-owned assets. CLI updates are published by pushing to Kubarr's `main`; a separate website build is only needed when changing the download script itself.
+
+Kubarr uses immutable GitHub releases. The publish job creates a draft, uploads both archives and checksums, and only then publishes it. Retrying a completed release leaves its existing assets intact. Version-tag prereleases do not replace the installer's latest-release download.
