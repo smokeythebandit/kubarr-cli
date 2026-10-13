@@ -50,7 +50,7 @@ Colour is enabled for interactive terminals and disabled for redirected output, 
 
 The CI workflow runs Rust and browser-wizard tests, then builds native Linux x86_64 and ARM64 binaries:
 
-- A successful push to `main` publishes an immutable `cli-<commit>` snapshot and marks it as the latest download.
+- A successful push to `main` publishes a commit-specific `cli-<commit>` snapshot and marks it as the latest download.
 - A `v*` tag publishes the matching numbered release. CI checks that the tag matches the version embedded in the binary. For example, package version `0.2.4` is released with tag `v0.2.4`.
 - Version-tag prereleases such as `v0.2.5-rc1` do not replace the latest download.
 - Pull requests test and build without publishing.

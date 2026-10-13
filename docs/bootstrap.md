@@ -89,4 +89,4 @@ After the tests and builds pass, the same workflow publishes the artifacts to th
 
 The assets are `kubarr-linux-x86_64.tar.gz` and `kubarr-linux-aarch64.tar.gz`, each with a matching `.sha256` file. The website hosts the installer script and downloads these CLI-owned assets. CLI updates are published by pushing to this repository's `main`; a website build is only needed when changing the download script itself. The Kubarr application repository pins a CLI revision for its own E2E and acceptance tests.
 
-Kubarr uses immutable GitHub releases. The publish job creates a draft, uploads both archives and checksums, and only then publishes it. Retrying a completed release leaves its existing assets intact. Version-tag prereleases do not replace the installer's latest-release download.
+The publish job supports GitHub's immutable release setting: it creates a draft, uploads both archives and checksums, and only then publishes it. Retrying a completed release leaves its existing assets intact. Version-tag prereleases do not replace the installer's latest-release download.
