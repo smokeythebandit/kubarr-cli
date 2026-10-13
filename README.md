@@ -7,10 +7,16 @@ The standalone installer and command-line tools for [Kubarr](https://github.com/
 On Linux x86_64 or ARM64:
 
 ```sh
-curl -fsSL https://kubarr.com/install.sh | sudo bash
+curl -fsSL https://kubarr.com/install.sh | bash
 ```
 
-The script downloads this repository's latest CLI binary, verifies its SHA-256 checksum, installs `/usr/local/bin/kubarr`, and starts the web wizard. Follow the printed invitation URL and keep the terminal open until setup finishes.
+The script downloads this repository's latest CLI binary, verifies its SHA-256 checksum, installs `~/.local/bin/kubarr`, and starts the web wizard as your current user. Follow the printed invitation URL and keep the terminal open until setup finishes. Installing the CLI and hosting the wizard do not require administrator privileges. Creating a new local k3s cluster still requires host-administration privileges.
+
+For later commands, add your local binary directory to PATH if needed:
+
+```sh
+export PATH="$HOME/.local/bin:$PATH"
+```
 
 To start the wizard again:
 

@@ -1,5 +1,13 @@
 # Web bootstrap
 
+Install and start the wizard as your normal user:
+
+```sh
+curl -fsSL https://kubarr.com/install.sh | bash
+```
+
+The binary is installed at `~/.local/bin/kubarr`. If needed, add `export PATH="$HOME/.local/bin:$PATH"` to your shell profile. The wizard uses your home directory and kubeconfig without elevated privileges. Creating a new local k3s cluster is a host-administration operation and still requires administrative privileges.
+
 `kubarr bootstrap` with no arguments starts the browser-based bootstrap wizard. Use `kubarr bootstrap --web` to request the same wizard explicitly. The CLI prints invitation URL(s); on a desktop session it also attempts to open the browser. If that fails, open a printed URL manually. The first step asks **where to install**: select a discovered Kubernetes context, upload a kubeconfig, or install a local single-node k3s cluster. Then configure dashboard access, storage, administrator account, and optional Grafana before reviewing the choices.
 
 ```sh
