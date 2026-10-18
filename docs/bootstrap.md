@@ -91,7 +91,7 @@ The standalone `kubarr-cli` repository owns CLI testing, versioning, builds, and
 
 Bootstrap components use the explicit chart revisions in `src/charts.rs`. Helm's default OCI version selection does not order SemVer build metadata such as `+1` and `+9`, so omitting the version can install an older revision. Local chart-directory overrides use their local metadata instead. LoadBalancer checks resolve and render the same pinned gateway chart used for installation.
 
-CLI v0.2.5 installs Kubarr v0.3.0 images and the matching application charts, including the declarative app-storage installer. Application image versions are pinned rather than following `latest`, keeping the worker compatible with the chart storage contract. Developer builds can override the image tag with `KUBARR_IMAGE_TAG`.
+CLI v0.2.5 installs Kubarr v0.3.1 images and the matching application charts, including the declarative app-storage installer. Application image versions are pinned rather than following `latest`, keeping the worker compatible with the chart storage contract. Developer builds can override the image tag with `KUBARR_IMAGE_TAG`.
 
 After the tests and builds pass, the same workflow publishes the artifacts to this repository's GitHub Releases:
 

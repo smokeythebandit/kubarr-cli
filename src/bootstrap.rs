@@ -125,10 +125,10 @@ mod tests {
             ("victoriametrics", "1.150.0+9"),
             ("grafana", "13.2.0"),
             ("postgresql", "16.15.0+8"),
-            ("kubarr-backend", "0.3.0"),
-            ("kubarr-frontend", "0.3.0"),
+            ("kubarr-backend", "0.3.1"),
+            ("kubarr-frontend", "0.3.1"),
             ("openresty", "1.29.2+5.3"),
-            ("kubarr-worker", "0.3.0"),
+            ("kubarr-worker", "0.3.1"),
         ] {
             let command = commands
                 .iter()
