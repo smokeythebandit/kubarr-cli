@@ -1,3 +1,4 @@
+use crate::charts::pinned_version;
 use crate::install_events::Operation;
 use crate::style::{detail, step};
 use crate::types::{
@@ -15,6 +16,7 @@ pub fn install_database(options: &BootstrapOptions) -> Result<(), String> {
     detail("namespace", DATABASE_NAMESPACE);
     let chart = chart_ref("postgresql", DATABASE_CHART_REF);
     detail("chart", &chart);
+    let version = pinned_version("postgresql", &chart)?;
 
     let mut args = vec![
         "upgrade".to_string(),
@@ -30,6 +32,9 @@ pub fn install_database(options: &BootstrapOptions) -> Result<(), String> {
         "namespace.create=true".to_string(),
     ];
 
+    if let Some(version) = version {
+        args.extend(["--version".to_string(), version.to_string()]);
+    }
     for (key, value) in storage_set_values(options) {
         args.extend(["--set".to_string(), format!("{}={}", key, value)]);
     }

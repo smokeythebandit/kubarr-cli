@@ -1,5 +1,6 @@
 mod bootstrap;
 mod bootstrap_web;
+mod charts;
 mod checks;
 mod checks_data;
 mod cluster;

@@ -176,7 +176,11 @@ fn chart_metadata(cancelled: &AtomicBool, end: Instant) -> Result<ChartMetadata,
             .map(|out| out.output)
             .ok_or_else(|| UNAVAILABLE.to_string())
     };
-    let info = invoke(&["show", "chart", &chart])?;
+    let mut metadata_args = vec!["show", "chart", &chart];
+    if let Some(version) = crate::charts::pinned_version("openresty", &chart)? {
+        metadata_args.extend(["--version", version]);
+    }
+    let info = invoke(&metadata_args)?;
     let metadata: Value = serde_yaml::from_str(&info).map_err(|_| UNAVAILABLE)?;
     let version = metadata["version"]
         .as_str()

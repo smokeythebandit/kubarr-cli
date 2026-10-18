@@ -34,7 +34,11 @@ pub fn bootstrap(args: Vec<String>) -> Result<(), String> {
                     .parse::<u16>()
                     .map_err(|_| "--web-port must be between 0 and 65535")?
             }
-            _ => return Err(format!("unknown bootstrap option '{arg}'. Configure installation in the web interface.")),
+            _ => {
+                return Err(format!(
+                    "unknown bootstrap option '{arg}'. Configure installation in the web interface."
+                ));
+            }
         }
     }
     run_web(port)
@@ -82,4 +86,68 @@ pub fn run_bootstrap_install(options: &BootstrapOptions) -> Result<(), String> {
     bootstrap_database(options)?;
     print_access_hint(&options.install);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::install_events::{self, InstallEvent, INSTALL_TEST_LOCK};
+    use crate::types::{BootstrapStorageOptions, InstallOptions, StorageOptions};
+    use std::sync::mpsc;
+
+    #[test]
+    fn every_remote_bootstrap_release_uses_an_explicit_chart_revision() {
+        let _guard = INSTALL_TEST_LOCK.lock().unwrap();
+        let (tx, rx) = mpsc::channel();
+        install_events::set_install_log(tx);
+        let result = run_bootstrap_install(&BootstrapOptions {
+            cluster_mode: ClusterMode::Existing,
+            install: InstallOptions::default_for_bootstrap(true),
+            storage: BootstrapStorageOptions {
+                mode: StorageModeOption::ManagedNfs(StorageOptions::default_managed(true)),
+            },
+            grafana_enabled: true,
+        });
+        install_events::clear_install_log();
+        result.unwrap();
+        let commands: Vec<String> = rx
+            .into_iter()
+            .filter_map(|event| match event {
+                InstallEvent::Legacy(line) if line.starts_with("[PLAN] helm upgrade") => Some(line),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(commands.len(), 10);
+        for (name, version) in [
+            ("managed-nfs", "12.0.0+2"),
+            ("fluent-bit", "5.1.1+9"),
+            ("victorialogs", "1.52.0+7"),
+            ("victoriametrics", "1.150.0+9"),
+            ("grafana", "13.2.0"),
+            ("postgresql", "16.15.0+8"),
+            ("kubarr-backend", "0.3.0"),
+            ("kubarr-frontend", "0.3.0"),
+            ("openresty", "1.29.2+5.3"),
+            ("kubarr-worker", "0.3.0"),
+        ] {
+            let command = commands
+                .iter()
+                .find(|line| line.split_whitespace().any(|word| word == name))
+                .unwrap();
+            if command
+                .split_whitespace()
+                .any(|word| word.starts_with("oci://"))
+            {
+                assert!(
+                    command.contains(&format!("--version {version}")),
+                    "unversioned or wrong revision: {command}"
+                );
+            } else {
+                assert!(
+                    !command.contains("--version"),
+                    "local override was pinned: {command}"
+                );
+            }
+        }
+    }
 }

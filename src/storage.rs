@@ -1,6 +1,7 @@
 use std::net::{TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
+use crate::charts::pinned_version;
 use crate::install_events::Operation;
 use crate::style::{detail, ok, step, warn};
 use crate::types::{
@@ -58,6 +59,7 @@ fn perform_storage_install(options: &StorageOptions) -> Result<(), String> {
     detail("release", &options.release);
     detail("namespace", &options.namespace);
     let chart = chart_ref("managed-nfs", MANAGED_NFS_CHART_REF);
+    let version = pinned_version("managed-nfs", &chart)?;
     detail("chart", &chart);
     detail("size", &options.size);
     detail(
@@ -83,6 +85,9 @@ fn perform_storage_install(options: &StorageOptions) -> Result<(), String> {
         "--set".into(),
         format!("persistence.size={}", options.size),
     ];
+    if let Some(version) = version {
+        args.extend(["--version".to_string(), version.to_string()]);
+    }
     if let Some(storage_class) = &options.storage_class {
         args.extend([
             "--set".to_string(),

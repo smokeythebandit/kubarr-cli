@@ -89,6 +89,10 @@ node --test src/bootstrap_web.test.mjs
 
 The standalone `kubarr-cli` repository owns CLI testing, versioning, builds, and releases. `.github/workflows/ci.yml` runs the Rust and browser-wizard tests, builds native Linux x86_64 and ARM64 release binaries, verifies the embedded version for version tags, and packages each binary with a SHA-256 checksum.
 
+Bootstrap components use the explicit chart revisions in `src/charts.rs`. Helm's default OCI version selection does not order SemVer build metadata such as `+1` and `+9`, so omitting the version can install an older revision. Local chart-directory overrides use their local metadata instead. LoadBalancer checks resolve and render the same pinned gateway chart used for installation.
+
+CLI v0.2.5 installs Kubarr v0.3.0 images and the matching application charts, including the declarative app-storage installer. Application image versions are pinned rather than following `latest`, keeping the worker compatible with the chart storage contract. Developer builds can override the image tag with `KUBARR_IMAGE_TAG`.
+
 After the tests and builds pass, the same workflow publishes the artifacts to this repository's GitHub Releases:
 
 - Successful `main` builds publish a commit-specific `cli-<commit>` snapshot as the [latest release](https://github.com/smokeythebandit/kubarr-cli/releases/latest), used by `https://kubarr.com/install.sh`.

@@ -562,7 +562,9 @@ mod web_tests {
         // The direct shell exits successfully; the detached helper inherits
         // stdout but leaves kubectl's process group. The old blocking join
         // could not return until sleep finished.
-        let script = "/usr/bin/setsid /bin/sh -c 'printf %s \"$$\" > \"$1\"; exec sleep 20' helper \"$1\" & printf 'direct child exited\\n'; exit 0";
+        // Wait for setsid to detach before the parent exits: probe cleanup
+        // otherwise can kill the helper before it escapes the process group.
+        let script = "/usr/bin/setsid /bin/sh -c 'printf %s \"$$\" > \"$1\"; exec sleep 20' helper \"$1\" & while [ ! -s \"$1\" ]; do sleep 0.01; done; printf 'direct child exited\\n'; exit 0";
         let start = Instant::now();
         let result = probe(
             "/bin/sh",

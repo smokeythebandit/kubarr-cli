@@ -1,3 +1,4 @@
+use crate::charts::pinned_version;
 use crate::install_events::Operation;
 use crate::style::{detail, step};
 use crate::types::{
@@ -261,6 +262,7 @@ fn install_chart(
     detail("release", release);
     detail("namespace", namespace);
     detail("chart", &chart);
+    let version = pinned_version(chart_name, &chart)?;
 
     let mut args = vec![
         "upgrade".to_string(),
@@ -275,6 +277,9 @@ fn install_chart(
         "--set".to_string(),
         "namespace.create=true".to_string(),
     ];
+    if let Some(version) = version {
+        args.extend(["--version".to_string(), version.to_string()]);
+    }
     for (key, value) in set_values {
         args.extend(["--set".to_string(), format!("{}={}", key, value)]);
     }

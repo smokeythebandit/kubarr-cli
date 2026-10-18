@@ -1,5 +1,6 @@
 use std::env;
 
+use crate::charts::pinned_version;
 use crate::install_events::Operation;
 use crate::style::detail;
 use crate::types::{
@@ -144,6 +145,7 @@ fn install_release(
 ) -> Result<(), String> {
     let chart = chart_ref(chart_name, chart_ref_default);
     detail("chart", &chart);
+    let version = pinned_version(chart_name, &chart)?;
 
     // Keep Helm 3's client-side apply and readiness checks explicit under Helm 4.
     let mut helm_args = vec![
@@ -155,14 +157,13 @@ fn install_release(
         "-n".to_string(),
         BOOTSTRAP_RELEASE_NAMESPACE.to_string(),
     ];
-    if release == "openresty" {
-        if let Some(version) = &options.gateway_chart_version {
-            if chart_ref_default.starts_with("oci://")
-                && std::env::var_os("KUBARR_CHARTS_DIR").is_none()
-            {
-                helm_args.extend(["--version".to_string(), version.clone()]);
-            }
-        }
+    if let Some(version) = version {
+        let version = if release == "openresty" {
+            options.gateway_chart_version.as_deref().unwrap_or(version)
+        } else {
+            version
+        };
+        helm_args.extend(["--version".to_string(), version.to_string()]);
     }
     for (key, value) in set_values {
         helm_args.extend(["--set".to_string(), format!("{}={}", key, value)]);
