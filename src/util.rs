@@ -14,6 +14,12 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 const MAX_CAPTURE_BYTES: usize = 32 * 1024;
+// Give cold image pulls and volume provisioning time to finish, while leaving
+// two minutes for Helm to record a failed release before our outer deadline.
+pub const HELM_TIMEOUT: &str = "15m";
+pub const ROLLOUT_TIMEOUT: &str = "--timeout=900s";
+pub const INSTALL_COMMAND_TIMEOUT: Duration = Duration::from_secs(17 * 60);
+pub const INSTALL_TIMEOUT_MESSAGE: &str = "Installation command timed out. Inspect the failed operation and cluster state before restarting the installer; partially installed resources are retained.";
 
 #[derive(Clone, Debug)]
 pub struct CommandTarget {
@@ -323,9 +329,17 @@ fn supervise_web_child(
             }
         }
         if exited.is_none() && deadline.is_some_and(|at| Instant::now() >= at) {
+            // Only signal a process group if the child actually owns it. Never
+            // signal our own group when a caller supplied a plain Command.
+            let pid = child.id() as i32;
+            unsafe {
+                if libc::getpgid(pid) == pid {
+                    libc::kill(-pid, libc::SIGKILL);
+                }
+            }
             let _ = child.kill();
             let _ = child.wait();
-            exited = Some(Err(format!("{label} timed out")));
+            exited = Some(Err(INSTALL_TIMEOUT_MESSAGE.to_string()));
             after_exit = Some(Instant::now());
         }
         if let Some(ref mut pipe) = stdout {
@@ -427,6 +441,7 @@ pub fn bounded_probe_output(
         return None;
     }
     let began = Instant::now();
+    command.process_group(0);
     let mut child = command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -466,10 +481,30 @@ fn run_command_with_interval(
     operation: Option<Operation>,
     interval: Duration,
 ) -> Result<std::process::ExitStatus, String> {
+    let timeout = match operation {
+        Some(Operation::K3s) => Duration::from_secs(30 * 60),
+        Some(Operation::StorageSecret | Operation::StorageRecord | Operation::AdminRecord) => {
+            Duration::from_secs(120)
+        }
+        _ => INSTALL_COMMAND_TIMEOUT,
+    };
+    run_command_with_timeout(command, label, input, operation, interval, timeout)
+}
+
+fn run_command_with_timeout(
+    command: &mut Command,
+    label: &str,
+    input: Option<&[u8]>,
+    operation: Option<Operation>,
+    interval: Duration,
+    timeout: Duration,
+) -> Result<std::process::ExitStatus, String> {
     if input.is_some() {
         command.stdin(Stdio::piped());
     }
     if install_events::is_active() {
+        #[cfg(unix)]
+        command.process_group(0);
         let began = Instant::now();
         if let Some(operation) = operation {
             install_events::progress(operation, ProgressKind::Start, Duration::ZERO);
@@ -489,8 +524,15 @@ fn run_command_with_interval(
                 format!("failed to run {label}: {err}")
             })?;
         #[cfg(unix)]
-        let (status, stdout, stderr, write_result) =
-            supervise_web_child(&mut child, label, input, operation, began, interval, None);
+        let (status, stdout, stderr, write_result) = supervise_web_child(
+            &mut child,
+            label,
+            input,
+            operation,
+            began,
+            interval,
+            Some(began + timeout),
+        );
         #[cfg(not(unix))]
         let (status, stdout, stderr, write_result) = {
             let stdout = child.stdout.take().ok_or("child stdout unavailable")?;
@@ -513,6 +555,11 @@ fn run_command_with_interval(
                     Ok(Some(status)) => break Ok(status),
                     Err(err) => break Err(format!("failed to wait for {label}: {err}")),
                     Ok(None) => {
+                        if began.elapsed() >= timeout {
+                            let _ = child.kill();
+                            let _ = child.wait();
+                            break Err(INSTALL_TIMEOUT_MESSAGE.to_string());
+                        }
                         if began.elapsed() >= next_heartbeat {
                             if let Some(operation) = operation {
                                 install_events::progress(
@@ -534,7 +581,7 @@ fn run_command_with_interval(
                 write_result,
             )
         };
-        if status.as_ref().is_ok_and(|status| !status.success()) || write_result.is_err() {
+        if !status.as_ref().is_ok_and(|status| status.success()) || write_result.is_err() {
             install_events::record_command_failure(label, &stdout, &stderr);
         }
         if let Some(operation) = operation {
@@ -543,12 +590,16 @@ fn run_command_with_interval(
                     ProgressKind::Success(status.code())
                 }
                 Ok(status) => ProgressKind::Failure(status.code()),
+                Err(error) if error == INSTALL_TIMEOUT_MESSAGE => ProgressKind::Timeout,
                 Err(_) => ProgressKind::Failure(None),
             };
             install_events::progress(operation, kind, began.elapsed());
         }
+        // A timeout takes precedence over the expected broken/partial stdin
+        // write caused by terminating the child.
+        let status = status?;
         write_result?;
-        status
+        Ok(status)
     } else if let Some(bytes) = input {
         let mut child = command
             .spawn()
@@ -570,6 +621,9 @@ fn run_command_with_interval(
 }
 
 pub fn command_success(command: &str, args: &[&str]) -> bool {
+    if install_events::is_active() {
+        return install_probe(command, args).is_some_and(|result| result.success);
+    }
     external_command(command)
         .args(args)
         .stdout(Stdio::null())
@@ -579,6 +633,12 @@ pub fn command_success(command: &str, args: &[&str]) -> bool {
 }
 
 pub fn command_output(command: &str, args: &[&str]) -> Option<String> {
+    if install_events::is_active() {
+        return install_probe(command, args)
+            .filter(|result| result.success)
+            .map(|result| result.output.trim().to_string())
+            .filter(|output| !output.is_empty());
+    }
     let output = external_command(command).args(args).output().ok()?;
     if !output.status.success() {
         return None;
@@ -587,6 +647,17 @@ pub fn command_output(command: &str, args: &[&str]) -> Option<String> {
         .ok()
         .map(|v| v.trim().to_string())
         .filter(|v| !v.is_empty())
+}
+
+fn install_probe(command: &str, args: &[&str]) -> Option<crate::checks::ProbeResult> {
+    let timeout = Duration::from_secs(10);
+    crate::checks::probe_with_timeout(
+        command,
+        args,
+        &std::sync::atomic::AtomicBool::new(false),
+        Instant::now() + timeout,
+        timeout,
+    )
 }
 
 pub fn kubectl_cluster_access() -> bool {
@@ -1026,5 +1097,83 @@ mod tests {
             .last()
             .unwrap()
             .contains("[FAIL] Storage:"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn install_deadline_stops_helpers_and_preserves_private_diagnostics() {
+        let _lock = install_events::INSTALL_TEST_LOCK.lock().unwrap();
+        let (path, log) = install_events::create_diagnostic_log().unwrap();
+        let marker = path.with_extension("helper-finished");
+        let (tx, rx) = std::sync::mpsc::channel();
+        install_events::set_diagnostic_log(Some(log));
+        install_events::set_install_log(tx);
+        // Use a plain Command: the runner must establish its own process group.
+        // A surviving grandchild would write this marker after the timeout.
+        let mut command = Command::new("sh");
+        command.args([
+            "-c",
+            "printf PRIVATE_stdout; printf PRIVATE_stderr >&2; (sleep 0.5; printf survived > \"$1\") & wait",
+            "fixture",
+            marker.to_str().unwrap(),
+        ]);
+        let began = Instant::now();
+        let result = run_command_with_timeout(
+            &mut command,
+            "helm",
+            None,
+            Some(Operation::Backend),
+            Duration::from_millis(20),
+            Duration::from_millis(100),
+        );
+        install_events::clear_install_log();
+        install_events::set_diagnostic_log(None);
+        let elapsed = began.elapsed();
+        let diagnostic = std::fs::read_to_string(&path).unwrap();
+        std::fs::remove_file(path).unwrap();
+        std::thread::sleep(Duration::from_millis(600));
+        let helper_survived = marker.exists();
+        let _ = std::fs::remove_file(marker);
+        assert_eq!(result.unwrap_err(), INSTALL_TIMEOUT_MESSAGE);
+        assert!(elapsed < Duration::from_secs(2));
+        assert!(!helper_survived, "timed-out helper continued to mutate state");
+        assert!(diagnostic.contains("PRIVATE_stdout"));
+        assert!(diagnostic.contains("PRIVATE_stderr"));
+        let lines: Vec<_> = rx
+            .into_iter()
+            .filter_map(|event| event.browser_line())
+            .collect();
+        assert!(lines.last().unwrap().contains("[FAIL] Kubarr backend:"));
+        assert!(lines.last().unwrap().contains("timed out"));
+        assert!(!lines.join("\n").contains("PRIVATE_"));
+        assert!(!lines.iter().any(|line| line.contains("[OK]")));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn blocked_stdin_reports_timeout_instead_of_partial_write() {
+        let _lock = install_events::INSTALL_TEST_LOCK.lock().unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        install_events::set_install_log(tx);
+        let mut command = Command::new("sh");
+        command.args(["-c", "sleep 20"]);
+        let began = Instant::now();
+        let result = run_command_with_timeout(
+            &mut command,
+            "kubectl",
+            Some(&vec![b'x'; 1024 * 1024]),
+            Some(Operation::StorageSecret),
+            Duration::from_millis(20),
+            Duration::from_millis(100),
+        );
+        install_events::clear_install_log();
+        assert_eq!(result.unwrap_err(), INSTALL_TIMEOUT_MESSAGE);
+        assert!(began.elapsed() < Duration::from_secs(2));
+        assert!(rx
+            .into_iter()
+            .filter_map(|event| event.browser_line())
+            .last()
+            .unwrap()
+            .contains("timed out"));
     }
 }

@@ -1,0 +1,89 @@
+name: Fast installer E2E
+
+on:
+  workflow_call:
+    inputs:
+      binary-artifact:
+        description: Archive/checksum artifact from this run; empty builds the CLI locally
+        type: string
+        default: ''
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    name: Fresh cluster to working Sonarr
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '26'
+          cache: npm
+          cache-dependency-path: tests/installer/package-lock.json
+      - name: Download the release candidate binary
+        if: inputs.binary-artifact != ''
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: ${{ inputs.binary-artifact }}
+          path: release-assets
+      - name: Verify and extract the release candidate
+        if: inputs.binary-artifact != ''
+        run: |
+          asset=release-assets/kubarr-linux-x86_64.tar.gz
+          expected="$(<"$asset.sha256")"
+          [[ "$expected" =~ ^[[:xdigit:]]{64}$ ]]
+          printf '%s  %s\n' "$expected" "$asset" | sha256sum --check --status
+          mkdir -p target/e2e
+          tar -xzf "$asset" -C target/e2e
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8
+        if: inputs.binary-artifact == ''
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        if: inputs.binary-artifact == ''
+      - name: Build standalone manual-run candidate
+        if: inputs.binary-artifact == ''
+        run: |
+          cargo build --locked
+          mkdir -p target/e2e
+          cp target/debug/kubarr target/e2e/kubarr
+      - name: Install pinned cluster tools
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSLo "$RUNNER_TEMP/kind-linux-amd64" https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64
+          curl -fsSLo "$RUNNER_TEMP/kind.sha256" https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64.sha256sum
+          (cd "$RUNNER_TEMP" && sha256sum --check kind.sha256)
+          install -m755 "$RUNNER_TEMP/kind-linux-amd64" "$HOME/.local/bin/kind"
+          curl -fsSLo "$RUNNER_TEMP/kubectl" https://dl.k8s.io/release/v1.35.8/bin/linux/amd64/kubectl
+          curl -fsSLo "$RUNNER_TEMP/kubectl.sha256" https://dl.k8s.io/release/v1.35.8/bin/linux/amd64/kubectl.sha256
+          printf '%s  %s\n' "$(<"$RUNNER_TEMP/kubectl.sha256")" "$RUNNER_TEMP/kubectl" | sha256sum --check --status
+          install -m755 "$RUNNER_TEMP/kubectl" "$HOME/.local/bin/kubectl"
+          container="helm-extract-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
+          docker create --name "$container" alpine/helm:4.3.0
+          docker cp "$container:/usr/bin/helm" "$HOME/.local/bin/helm"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          sudo modprobe nfs
+          sudo modprobe nfsd
+          sudo sysctl -w fs.inotify.max_user_instances=1024
+      - name: Install test dependencies
+        run: |
+          python3 -m venv "$RUNNER_TEMP/installer-python"
+          "$RUNNER_TEMP/installer-python/bin/pip" install -r tests/installer/requirements.txt
+          echo "$RUNNER_TEMP/installer-python/bin" >> "$GITHUB_PATH"
+          npm ci --prefix tests/installer --ignore-scripts
+          npm exec --prefix tests/installer -- playwright install --with-deps chromium
+      - name: Installer to Sonarr
+        run: python tests/installer/run.py --binary target/e2e/kubarr
+      - name: Upload timings and failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: installer-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: tests/installer/artifacts/
+          if-no-files-found: warn
+          retention-days: 7

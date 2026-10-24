@@ -12,6 +12,7 @@ mod install_access;
 mod install_events;
 mod loadbalancer_probe;
 mod observability;
+mod readiness;
 mod storage;
 mod storage_probe;
 mod storage_secret;

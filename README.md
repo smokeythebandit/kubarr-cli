@@ -35,6 +35,34 @@ kubarr users --help
 kubarr --version
 ```
 
+### Installation waits and failures
+
+Fresh managed-storage installs use userspace NFS-Ganesha, which does not require
+the host's kernel `nfsd` support (including on Talos). Existing managed-NFS
+releases retain their server implementation. The dedicated storage namespace
+declares the server's required Pod Security exception, and readiness checks wait
+for the NFS port rather than merely a running container.
+
+Helm operations and workload rollouts have a 15-minute readiness budget for
+cold image pulls and storage provisioning. The Linux browser installer also
+enforces outer command deadlines: 17 minutes for deployment commands, 30 minutes
+for local k3s installation, and two minutes for storage/admin writes. Read-only
+installation probes are limited to ten seconds each; the wizard's prerequisite
+checks and schema-migration wait retain their own deadlines.
+
+On an outer timeout, the installer terminates the command's process group and
+reports the timed-out operation in the browser. Kubernetes resources remain in
+place, and a submitted server-side operation may still complete. Inspect the
+release/workload state before restarting; the installer does not automatically
+replay a timed-out mutation or delete Helm release records. Local command
+diagnostics remain available at the private log path printed by the CLI (except
+for uploaded-kubeconfig installs).
+
+A release must include all pinned application images and charts. A missing
+image tag cannot be fixed by waiting longer. The published-artifact installer
+E2E lane must pass before promoting an installer; local candidate-image runs do
+not establish that the public downloads are usable.
+
 ## Develop
 
 The CLI is a self-contained Rust crate. The browser UI is embedded from `src/bootstrap_web.html`; there is no separate frontend build.

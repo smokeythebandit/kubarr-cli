@@ -31,6 +31,10 @@ jobs:
           node-version: '26'
       - run: cargo test --locked --bin kubarr
       - run: node --test src/bootstrap_web.test.mjs
+      - run: |
+          python3 -m venv "$RUNNER_TEMP/installer-helpers"
+          "$RUNNER_TEMP/installer-helpers/bin/pip" install -r tests/installer/requirements.txt
+          "$RUNNER_TEMP/installer-helpers/bin/python" -m unittest discover -s tests/installer -p 'test_*.py'
 
   build:
     name: Linux / ${{ matrix.arch }}
@@ -93,9 +97,16 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
+  installer-e2e:
+    name: Installer acceptance
+    needs: build
+    uses: ./.github/workflows/installer-e2e.yml
+    with:
+      binary-artifact: kubarr-cli-x86_64
+
   publish:
     name: Publish CLI release
-    needs: build
+    needs: [build, installer-e2e]
     if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-24.04
     timeout-minutes: 5

@@ -87,11 +87,17 @@ node --test src/bootstrap_web.test.mjs
 
 ## CLI builds and releases
 
+The [fast installer E2E suite](../tests/installer/README.md) runs the actual browser
+wizard against a disposable baseline-enforcing Kind cluster, logs into the newly
+installed dashboard, and installs Sonarr through the catalog. CI tests the built
+release artifact and gates publishing on the complete journey. Its reports include
+per-stage timings and cluster diagnostics.
+
 The standalone `kubarr-cli` repository owns CLI testing, versioning, builds, and releases. `.github/workflows/ci.yml` runs the Rust and browser-wizard tests, builds native Linux x86_64 and ARM64 release binaries, verifies the embedded version for version tags, and packages each binary with a SHA-256 checksum.
 
 Bootstrap components use the explicit chart revisions in `src/charts.rs`. Helm's default OCI version selection does not order SemVer build metadata such as `+1` and `+9`, so omitting the version can install an older revision. Local chart-directory overrides use their local metadata instead. LoadBalancer checks resolve and render the same pinned gateway chart used for installation.
 
-CLI v0.2.5 installs Kubarr v0.3.1 images and the matching application charts, including the declarative app-storage installer. Application image versions are pinned rather than following `latest`, keeping the worker compatible with the chart storage contract. Developer builds can override the image tag with `KUBARR_IMAGE_TAG`.
+CLI v0.2.6 installs Kubarr v0.3.2 images and the matching application charts, including the declarative app-storage installer. Fresh managed-NFS installations select the userspace server in chart `12.0.0+3`; existing managed-NFS releases retain their server implementation. Gateway chart `1.29.2+5.4` includes the tested response-framing and native app-routing fixes. Application image versions are pinned rather than following `latest`, keeping the worker compatible with the chart storage contract. Developer builds can override the image tag with `KUBARR_IMAGE_TAG`.
 
 After the tests and builds pass, the same workflow publishes the artifacts to this repository's GitHub Releases:
 

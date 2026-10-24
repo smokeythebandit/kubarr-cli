@@ -119,21 +119,25 @@ mod tests {
             .collect();
         assert_eq!(commands.len(), 10);
         for (name, version) in [
-            ("managed-nfs", "12.0.0+2"),
+            ("managed-nfs", "12.0.0+3"),
             ("fluent-bit", "5.1.1+9"),
             ("victorialogs", "1.52.0+7"),
             ("victoriametrics", "1.150.0+9"),
             ("grafana", "13.2.0"),
             ("postgresql", "16.15.0+8"),
-            ("kubarr-backend", "0.3.1"),
-            ("kubarr-frontend", "0.3.1"),
-            ("openresty", "1.29.2+5.3"),
-            ("kubarr-worker", "0.3.1"),
+            ("kubarr-backend", "0.3.2"),
+            ("kubarr-frontend", "0.3.2"),
+            ("openresty", "1.29.2+5.4"),
+            ("kubarr-worker", "0.3.2"),
         ] {
             let command = commands
                 .iter()
                 .find(|line| line.split_whitespace().any(|word| word == name))
                 .unwrap();
+            assert!(
+                command.contains("--timeout 15m"),
+                "missing cold-start budget: {command}"
+            );
             if command
                 .split_whitespace()
                 .any(|word| word.starts_with("oci://"))

@@ -1309,6 +1309,14 @@ fn safe_failure_result(error: &str) -> String {
     // Installer errors may contain file paths, command arguments, or tool text.
     // Only exact fixed messages can be returned; unknown errors stay generic.
     for known in [
+        crate::util::INSTALL_TIMEOUT_MESSAGE,
+        crate::readiness::POD_SECURITY_REJECTED,
+        crate::readiness::POD_CREATION_FAILED,
+        crate::readiness::ROLLOUT_FAILED,
+        crate::readiness::ROLLOUT_TIMED_OUT,
+        "could not inspect existing managed NFS release; installation was not changed",
+        "could not inspect existing managed NFS configuration; installation was not changed",
+        "existing managed NFS implementation is unsupported",
         "Helm 4 is required (target: 4.3.0); check `helm version` locally",
         "required tool 'helm' was not found in PATH",
         "required tool 'kubectl' was not found in PATH",
@@ -3944,6 +3952,7 @@ mod tests {
             "database bootstrap SQL failed (exit status 7)"
         );
         for known in [
+            crate::util::INSTALL_TIMEOUT_MESSAGE,
             "Helm 4 is required (target: 4.3.0); check `helm version` locally",
             "required tool 'kubectl' was not found in PATH",
         ] {

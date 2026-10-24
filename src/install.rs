@@ -152,6 +152,8 @@ fn install_release(
         "upgrade".to_string(),
         "--install".to_string(),
         "--server-side=false".to_string(),
+        "--timeout".to_string(),
+        crate::util::HELM_TIMEOUT.to_string(),
         release.to_string(),
         chart,
         "-n".to_string(),

@@ -6,16 +6,16 @@ pub fn pinned_version(name: &str, reference: &str) -> Result<Option<&'static str
         return Ok(None);
     }
     let version = match name {
-        "managed-nfs" => "12.0.0+2",
+        "managed-nfs" => "12.0.0+3",
         "postgresql" => "16.15.0+8",
         "fluent-bit" => "5.1.1+9",
         "victorialogs" => "1.52.0+7",
         "victoriametrics" => "1.150.0+9",
         "grafana" => "13.2.0",
-        "kubarr-backend" => "0.3.1",
-        "kubarr-frontend" => "0.3.1",
-        "kubarr-worker" => "0.3.1",
-        "openresty" => "1.29.2+5.3",
+        "kubarr-backend" => "0.3.2",
+        "kubarr-frontend" => "0.3.2",
+        "kubarr-worker" => "0.3.2",
+        "openresty" => "1.29.2+5.4",
         _ => return Err(format!("no pinned bootstrap chart version for '{name}'")),
     };
     Ok(Some(version))

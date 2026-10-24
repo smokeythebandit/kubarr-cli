@@ -16,6 +16,7 @@ const MAX_DIAGNOSTIC_BYTES: usize = 1024 * 1024;
 pub enum Operation {
     K3s,
     ManagedNfs,
+    ManagedNfsRollout,
     FluentBit,
     FluentBitPatch,
     FluentBitRollout,
@@ -43,6 +44,7 @@ impl Operation {
         match self {
             K3s => "Cluster: install local k3s",
             ManagedNfs => "Storage: install/upgrade Helm release managed-nfs (release namespace default; workload namespace kubarr-storage)",
+            ManagedNfsRollout => "Storage: wait for managed NFS service readiness (workload namespace kubarr-storage)",
             FluentBit => "Fluent Bit: install/upgrade Helm release fluent-bit (release namespace default; workload namespace fluent-bit)",
             FluentBitPatch => "Fluent Bit: patch DaemonSet readiness (workload namespace fluent-bit)",
             FluentBitRollout => "Fluent Bit: wait for DaemonSet rollout (workload namespace fluent-bit)",
@@ -72,6 +74,7 @@ pub enum ProgressKind {
     Wait,
     Success(Option<i32>),
     Failure(Option<i32>),
+    Timeout,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -179,6 +182,13 @@ impl InstallEvent {
             return None;
         };
         let (label, suffix) = match kind {
+            ProgressKind::Timeout => (
+                "FAIL",
+                format!(
+                    " · timed out after {}s · inspect cluster state before retrying",
+                    elapsed.as_secs()
+                ),
+            ),
             ProgressKind::Start => ("RUN", String::new()),
             ProgressKind::Wait => ("WAIT", format!(" · elapsed {}s", elapsed.as_secs())),
             ProgressKind::Success(code) => (

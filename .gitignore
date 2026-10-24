@@ -1,2 +1,6 @@
 /target/
 /release-assets/
+/tests/installer/node_modules/
+/tests/installer/artifacts/
+__pycache__/
+/.venv-installer/
