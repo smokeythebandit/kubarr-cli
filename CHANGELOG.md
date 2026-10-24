@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.7
+
+- Select Kubarr `0.3.3` images and platform charts after upstream image-build
+  rate limits blocked the previous release candidate.
+- Retain the installer robustness and release acceptance changes from 0.2.6.
+
 ## 0.2.6
 
 - Use userspace NFS-Ganesha for fresh managed-storage installations, supporting
