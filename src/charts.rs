@@ -12,9 +12,9 @@ pub fn pinned_version(name: &str, reference: &str) -> Result<Option<&'static str
         "victorialogs" => "1.52.0+7",
         "victoriametrics" => "1.150.0+9",
         "grafana" => "13.2.0",
-        "kubarr-backend" => "0.3.3",
-        "kubarr-frontend" => "0.3.3",
-        "kubarr-worker" => "0.3.3",
+        "kubarr-backend" => "0.3.4",
+        "kubarr-frontend" => "0.3.4",
+        "kubarr-worker" => "0.3.4",
         "openresty" => "1.29.2+5.4",
         _ => return Err(format!("no pinned bootstrap chart version for '{name}'")),
     };

@@ -2,8 +2,8 @@
 
 ## 0.2.7
 
-- Select Kubarr `0.3.3` images and platform charts after upstream image-build
-  rate limits blocked the previous release candidate.
+- Select Kubarr `0.3.4` images and platform charts after upstream image-build
+  rate limits and stale release-fixture checks blocked previous candidates.
 - Retain the installer robustness and release acceptance changes from 0.2.6.
 
 ## 0.2.6
