@@ -5,6 +5,8 @@
 - Select Kubarr `0.3.4` images and platform charts after upstream image-build
   rate limits and stale release-fixture checks blocked previous candidates.
 - Retain the installer robustness and release acceptance changes from 0.2.6.
+- Pin gateway `1.29.2+5.5`, preserving anonymous OAuth discovery/login while
+  keeping OAuth administration and app APIs authenticated.
 
 ## 0.2.6
 

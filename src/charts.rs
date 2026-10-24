@@ -15,7 +15,7 @@ pub fn pinned_version(name: &str, reference: &str) -> Result<Option<&'static str
         "kubarr-backend" => "0.3.4",
         "kubarr-frontend" => "0.3.4",
         "kubarr-worker" => "0.3.4",
-        "openresty" => "1.29.2+5.4",
+        "openresty" => "1.29.2+5.5",
         _ => return Err(format!("no pinned bootstrap chart version for '{name}'")),
     };
     Ok(Some(version))

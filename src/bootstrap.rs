@@ -127,7 +127,7 @@ mod tests {
             ("postgresql", "16.15.0+8"),
             ("kubarr-backend", "0.3.4"),
             ("kubarr-frontend", "0.3.4"),
-            ("openresty", "1.29.2+5.4"),
+            ("openresty", "1.29.2+5.5"),
             ("kubarr-worker", "0.3.4"),
         ] {
             let command = commands
