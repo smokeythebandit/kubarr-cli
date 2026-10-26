@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.8
+
+- Prepare monitoring storage subdirectories as unprivileged users before NFS
+  subPath mounts, supporting fresh external exports with root squashing enabled.
+- Preserve VictoriaMetrics' existing UID while allowing the shared media group
+  to access prepared directories; retain single-writer monitoring rollouts.
+- Update pinned monitoring charts and gateway `1.29.2+5.6`, which preserves API
+  error statuses during application outages.
+- Exercise the packaged installer against a root-squashed NFS fixture owned by
+  UID/GID 1000 rather than a world-writable export.
+
 ## 0.2.7
 
 - Select Kubarr `0.3.4` images and platform charts after upstream image-build

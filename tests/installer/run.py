@@ -233,7 +233,6 @@ class Journey:
                      "--label", f"kubarr.installer.run={self.name}", "--privileged",
                      "-v", f"{self.name}:/nfsshare", "-e", "SHARED_DIRECTORY=/nfsshare", NFS_IMAGE)
             self.nfs_created = True
-            self.run("docker", "exec", self.name + "-nfs", "chmod", "0777", "/nfsshare")
             self.nfs_ip = self.run("docker", "inspect", "--format",
                                     '{{(index .NetworkSettings.Networks "kind").IPAddress}}', self.name + "-nfs").strip()
             # A fresh kernel NFSv4 server rejects new stateful operations during
@@ -241,6 +240,17 @@ class Journey:
             # user's one-shot storage check; do not hide that with UI retries.
             with self.stage("Wait for fresh NFS server recovery grace"):
                 self.wait_nfs_grace()
+            self.configure_nfs_permissions()
+
+    def configure_nfs_permissions(self):
+        # Reproduce a normal external share: the media user can write, whereas
+        # kubelet's root identity is squashed and cannot create app subPaths.
+        exports = self.run("docker", "exec", self.name + "-nfs", "sh", "-ec",
+                           "chown 1000:1000 /nfsshare; chmod 0775 /nfsshare; "
+                           "sed -i 's/no_root_squash/root_squash/g' /etc/exports; "
+                           "exportfs -ra; exportfs -v", timeout=15)
+        if "no_root_squash" in exports or "root_squash" not in exports:
+            raise RuntimeError("NFS acceptance fixture did not enable root squashing")
 
     def wait_nfs_grace(self):
         deadline = time.monotonic() + 120

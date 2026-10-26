@@ -92,6 +92,23 @@ class HarnessTests(unittest.TestCase):
             finally:
                 journey.cleanup()
 
+    def test_nfs_fixture_uses_media_user_permissions_and_root_squashing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            journey = self.journey(directory)
+            try:
+                with patch.object(journey, "run", return_value="/nfsshare *(rw,root_squash)") as run:
+                    journey.configure_nfs_permissions()
+                command = run.call_args.args[-1]
+                self.assertIn("chown 1000:1000 /nfsshare", command)
+                self.assertIn("chmod 0775 /nfsshare", command)
+                self.assertIn("exportfs -ra; exportfs -v", command)
+                for invalid in ("/nfsshare *(rw,no_root_squash)", ""):
+                    with patch.object(journey, "run", return_value=invalid):
+                        with self.assertRaisesRegex(RuntimeError, "root squashing"):
+                            journey.configure_nfs_permissions()
+            finally:
+                journey.cleanup()
+
 
 if __name__ == "__main__":
     unittest.main()
