@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -89,6 +90,75 @@ class HarnessTests(unittest.TestCase):
                 with patch.object(journey, "run", return_value="N"), patch("run.time.sleep"), patch("run.time.monotonic", side_effect=[0, 1, 121]):
                     with self.assertRaisesRegex(RuntimeError, "recovery grace"):
                         journey.wait_nfs_grace()
+            finally:
+                journey.cleanup()
+
+    def test_images_docker_cannot_export_are_pulled_by_the_node_instead(self):
+        unexportable = (
+            "Error response from daemon: no suitable export target found: image with "
+            "reference ghcr.io/example/frontend:1.2.3 was found but does not provide "
+            "the specified platform (linux/amd64)"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            journey = self.journey(directory)
+            journey.images = ["ghcr.io/example/frontend:1.2.3", "ghcr.io/example/backend:1.2.3"]
+            saves = iter([RuntimeError(unexportable), ""])
+
+            def fake_run(*command, **kwargs):
+                if command[:3] == ("docker", "image", "save"):
+                    result = next(saves)
+                    if isinstance(result, Exception):
+                        raise result
+                    Path(command[6]).touch()
+                    return result
+                return "linux/amd64\n" if command[1] == "version" else ""
+
+            try:
+                with patch.object(journey, "run", side_effect=fake_run) as run:
+                    journey.load_images()
+                calls = [call.args for call in run.call_args_list]
+                saved = [call for call in calls if call[:3] == ("docker", "image", "save")]
+                # The exportable image still travels in one archive.
+                self.assertEqual(saved[-1][-1], "ghcr.io/example/backend:1.2.3")
+                self.assertIn("ghcr.io/example/frontend:1.2.3", saved[0])
+                self.assertIn(
+                    ("docker", "exec", journey.name + "-control-plane", "crictl", "pull",
+                     "ghcr.io/example/frontend:1.2.3"),
+                    calls,
+                )
+                self.assertTrue(any(call[:2] == ("kind", "load") for call in calls))
+            finally:
+                journey.cleanup()
+
+    def test_image_load_still_fails_when_docker_names_no_unexportable_image(self):
+        with tempfile.TemporaryDirectory() as directory:
+            journey = self.journey(directory)
+            journey.images = ["ghcr.io/example/backend:1.2.3"]
+
+            def fake_run(*command, **kwargs):
+                if command[:3] == ("docker", "image", "save"):
+                    raise RuntimeError("docker failed (1):\nno space left on device")
+                return "linux/amd64\n"
+
+            try:
+                with patch.object(journey, "run", side_effect=fake_run):
+                    with self.assertRaisesRegex(RuntimeError, "no space left on device"):
+                        journey.load_images()
+            finally:
+                journey.cleanup()
+
+    def test_recorded_result_keeps_the_failure_reason_without_credentials(self):
+        with tempfile.TemporaryDirectory() as directory:
+            journey = self.journey(directory)
+            try:
+                journey.record_result(False, f"Wrong chart revision; password {journey.password}")
+                result = json.loads((journey.artifacts / "result.json").read_text())
+                self.assertFalse(result["passed"])
+                self.assertEqual(result["run"], journey.name)
+                self.assertIn("Wrong chart revision", result["error"])
+                self.assertNotIn(journey.password, result["error"])
+                journey.record_result(True, "")
+                self.assertEqual(json.loads((journey.artifacts / "result.json").read_text())["error"], "")
             finally:
                 journey.cleanup()
 

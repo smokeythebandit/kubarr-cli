@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.9
+
+- Pin database chart `16.15.0+9`, which prepares its own NFS subdirectory as an
+  unprivileged user. Installations against a root-squashed export previously
+  stalled on a database rollout that could never finish.
+- Report a storage check killed by its deadline as a timeout, naming an
+  unreachable or slow server and the NFSv4 recovery grace period after a
+  restart, instead of claiming the read/write test went unconfirmed.
+- Load acceptance images that Docker's containerd store cannot export by
+  platform through the node's own registry pull, naming each one, so a single
+  unexportable image no longer ends the run.
+- Keep the redacted failure reason in the acceptance run's `result.json`, so a
+  failed run is diagnosable from its artifacts alone.
+
 ## 0.2.8
 
 - Prepare monitoring storage subdirectories as unprivileged users before NFS

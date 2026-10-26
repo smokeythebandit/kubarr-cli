@@ -124,7 +124,7 @@ mod tests {
             ("victorialogs", "1.53.0+9"),
             ("victoriametrics", "1.154.1+11"),
             ("grafana", "13.2.4"),
-            ("postgresql", "16.15.0+8"),
+            ("postgresql", "16.15.0+9"),
             ("kubarr-backend", "0.3.4"),
             ("kubarr-frontend", "0.3.4"),
             ("openresty", "1.29.2+5.6"),

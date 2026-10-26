@@ -72,7 +72,9 @@ catalog or patch workloads after installation.
 - Chart preparation and image pulls use four concurrent workers.
 - Existing Docker images are reused; native-platform images are loaded into Kind
   in one archive. Digest-only probe images are pulled through CRI to preserve
-  their digest identity.
+  their digest identity. Docker's containerd image store refuses to export some
+  pulled images by platform; those are named on stdout and pulled inside the
+  node instead, so the run needs registry access for them but never skips one.
 - The installer and app waits observe actual state with bounded deadlines.
 - The fresh kernel-NFS fixture waits for its NFSv4 recovery grace period to end
   before presenting an external export to the wizard. The wait reads server
@@ -83,6 +85,8 @@ catalog or patch workloads after installation.
 Artifacts are in `tests/installer/artifacts/<run>/`: result, versions, timings,
 curated installer progress, browser failure output, screenshot, workload status,
 Kubernetes events, node startup output, and short-lived NFS probe diagnostics.
+`result.json` carries the redacted failure reason, so a failed run is
+diagnosable from its artifacts alone.
 Password fields are cleared before failure screenshots. Raw request traces,
 Secrets, ConfigMaps, kubeconfigs, and private installer logs are not uploaded.
 

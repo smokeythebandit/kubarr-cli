@@ -7,7 +7,7 @@ pub fn pinned_version(name: &str, reference: &str) -> Result<Option<&'static str
     }
     let version = match name {
         "managed-nfs" => "12.0.0+3",
-        "postgresql" => "16.15.0+8",
+        "postgresql" => "16.15.0+9",
         "fluent-bit" => "5.1.5+10",
         "victorialogs" => "1.53.0+9",
         "victoriametrics" => "1.154.1+11",

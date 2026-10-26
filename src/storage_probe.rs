@@ -682,7 +682,19 @@ pub fn run(
                         cancelled,
                         end,
                     );
+                    // Kubelet enforces activeDeadlineSeconds by sending SIGTERM,
+                    // which leaves the script's cleanup markers behind without
+                    // any write confirmation. Reporting that as an unconfirmed
+                    // read/write blames export permissions for a timeout.
+                    let killed_by_deadline = pod.pointer("/status/reason").and_then(Value::as_str)
+                        == Some("DeadlineExceeded");
+                    let reported = logs
+                        .as_ref()
+                        .filter(|out| out.success)
+                        .and_then(|out| probe_error(&out.output));
                     let reason = match logs.as_ref() {
+                        _ if reported.is_some() => reported.unwrap(),
+                        _ if killed_by_deadline => "The NFS file test did not finish within its deadline. The server is unreachable or too slow, or it is still inside its NFSv4 recovery grace period after a restart; retry once the server settles.",
                         None => "Could not retrieve the test Pod logs before its deadline.",
                         Some(out) if !out.success => "The test Pod logs could not be read. Check namespace Pod log permission.",
                         Some(out) => probe_error(&out.output).unwrap_or_else(|| {
@@ -863,6 +875,9 @@ mod tests {
 
     thread_local! {
         static LAG_POD_PHASE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+        // Kubelet kills the probe at activeDeadlineSeconds. Its SIGTERM handler
+        // exits through the script's cleanup, so only CLEANUP_OK is ever logged.
+        static DEADLINE_POD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     }
 
     fn fake_run(
@@ -880,6 +895,7 @@ mod tests {
         let cancelled = Arc::new(AtomicBool::new(false));
         let signal = cancelled.clone();
         let lag_pod_phase = LAG_POD_PHASE.with(|flag| flag.get());
+        let deadline_pod = DEADLINE_POD.with(|flag| flag.get());
         let pod_reads = std::sync::atomic::AtomicUsize::new(0);
         MOCK.with(|mock| *mock.borrow_mut() = Some(Box::new(move |args, manifest| {
             let mut objects = saved.lock().unwrap();
@@ -925,6 +941,7 @@ mod tests {
                     "status":{"conditions":[{"type":"Ready","status":"True"}]}}]}).to_string());
             }
             if op == "logs" {
+                if deadline_pod { return success("CLEANUP_OK\n".into()); }
                 return success(if failed_pod { String::new() } else { "READ_WRITE_OK\nCLEANUP_OK\n".into() });
             }
             if op == "get" && args.get(1) == Some(&"pods,pvc") {
@@ -937,7 +954,11 @@ mod tests {
             if op == "get" {
                 if let Some(mut value) = objects.get(kind).cloned() {
                     if kind == "Pod" {
-                        value["status"] = if failed_pod { json!({"phase":"Failed"}) }
+                        value["status"] = if deadline_pod {
+                                json!({"phase":"Failed","reason":"DeadlineExceeded",
+                                       "message":"Pod was active on the node longer than the specified deadline",
+                                       "containerStatuses":[{"state":{"terminated":{"exitCode":1,"reason":"Error"}}}]})
+                            } else if failed_pod { json!({"phase":"Failed"}) }
                             else if lag_pod_phase && pod_reads.fetch_add(1, Ordering::AcqRel) == 0 {
                                 json!({"phase":"Running","containerStatuses":[{"state":{"terminated":{"exitCode":0}}}]})
                             } else { json!({"phase":"Succeeded"}) };
@@ -1173,6 +1194,24 @@ mod tests {
         observed["metadata"]["name"] = json!(names.ns);
         observed["metadata"]["labels"]["kubarr.io/storage-check"] = json!("another-run");
         assert!(!identity(&observed, &names, "Namespace", &names.ns, None));
+    }
+
+    #[test]
+    fn a_probe_killed_by_its_deadline_reports_the_timeout_not_a_missing_write() {
+        DEADLINE_POD.with(|flag| flag.set(true));
+        let (result, stages, _) = fake_run(None, false, false, None, None, false);
+        DEADLINE_POD.with(|flag| flag.set(false));
+        assert!(result.is_err(), "a killed probe never confirms the file test");
+        let message = stages[3].message.as_str();
+        assert_eq!(stages[3].state, "failed");
+        assert!(
+            message.contains("did not finish") && message.contains("recovery grace"),
+            "a deadline kill must name the timeout and its usual cause: {message:?}"
+        );
+        assert!(
+            !message.contains("directory was removed"),
+            "cleanup running on SIGTERM is not evidence that read/write was tested: {message:?}"
+        );
     }
 
     #[test]

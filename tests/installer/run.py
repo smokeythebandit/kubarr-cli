@@ -24,7 +24,7 @@ ROOT = HERE.parents[1]
 REGISTRY = "oci://ghcr.io/smokeythebandit/kubarr-charts"
 KIND_IMAGE = "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0"
 NFS_IMAGE = "itsthenetwork/nfs-server-alpine:12"
-SONARR_VERSION = "4.0.19+9"
+SONARR_VERSION = "4.0.20+12"
 RELEASES = {
     "fluent-bit": ("fluent-bit", "daemonset/fluent-bit"),
     "victorialogs": ("victorialogs", "deployment/victorialogs"),
@@ -215,18 +215,7 @@ class Journey:
                 raise RuntimeError("Unexpected context in isolated kubeconfig")
 
         with self.stage("Load images and start external NFS fixture"):
-            platform = self.run("docker", "version", "--format", "{{.Server.Os}}/{{.Server.Arch}}").strip()
-            archive = self.work / "images.tar"
-            # Docker save strips the original multi-platform digest reference.
-            # Pull digest-only probe images through CRI instead of importing a
-            # dangling containerd import-* alias (CreateContainerError).
-            tagged = [image for image in self.images if "@sha256:" not in image]
-            self.run("docker", "image", "save", "--platform", platform, "-o", archive, *tagged, timeout=180)
-            self.run("kind", "load", "image-archive", "--name", self.name, archive, timeout=180)
-            archive.unlink()
-            for image in self.images:
-                if "@sha256:" in image:
-                    self.run("docker", "exec", self.name + "-control-plane", "crictl", "pull", image, timeout=120)
+            self.load_images()
             self.run("docker", "volume", "create", "--label", f"kubarr.installer.run={self.name}", self.name)
             self.volume_created = True
             self.run("docker", "run", "-d", "--name", self.name + "-nfs", "--network", "kind",
@@ -241,6 +230,40 @@ class Journey:
             with self.stage("Wait for fresh NFS server recovery grace"):
                 self.wait_nfs_grace()
             self.configure_nfs_permissions()
+
+    def load_images(self):
+        platform = self.run("docker", "version", "--format", "{{.Server.Os}}/{{.Server.Arch}}").strip()
+        # Docker save strips the original multi-platform digest reference.
+        # Pull digest-only probe images through CRI instead of importing a
+        # dangling containerd import-* alias (CreateContainerError).
+        in_node = [image for image in self.images if "@sha256:" in image]
+        archived = [image for image in self.images if "@sha256:" not in image]
+        while archived:
+            archive = self.work / "images.tar"
+            try:
+                self.run("docker", "image", "save", "--platform", platform, "-o", archive, *archived, timeout=180)
+            except RuntimeError as error:
+                # Docker's containerd image store refuses to export some pulled
+                # images by platform even though they run and remain complete in
+                # the registry. Let the node pull those itself rather than lose
+                # the run, and never drop an image silently.
+                rejected = re.findall(r"image with reference (\S+) was found but does not provide", str(error))
+                remaining = [image for image in archived if image not in rejected]
+                if not rejected or remaining == archived:
+                    raise
+                print(f"[e2e] Docker cannot export {' '.join(rejected)}; pulling in the node instead", flush=True)
+                in_node += rejected
+                archived = remaining
+                continue
+            self.run("kind", "load", "image-archive", "--name", self.name, archive, timeout=180)
+            archive.unlink()
+            break
+        for image in in_node:
+            self.run("docker", "exec", self.name + "-control-plane", "crictl", "pull", image, timeout=120)
+
+    def record_result(self, success, error):
+        (self.artifacts / "result.json").write_text(json.dumps(
+            {"passed": success, "run": self.name, "error": self.redact(error)}))
 
     def configure_nfs_permissions(self):
         # Reproduce a normal external share: the media user can write, whereas
@@ -402,6 +425,7 @@ def main():
     journey = Journey(args)
     signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt()))
     success = False
+    reason = ""
     try:
         journey.setup()
         observer = threading.Thread(target=journey.observe_probes, daemon=True)
@@ -410,6 +434,7 @@ def main():
         journey.verify()
         success = True
     except (Exception, KeyboardInterrupt) as error:
+        reason = f"{type(error).__name__}: {error}"
         print(f"[e2e] FAILED: {journey.redact(str(error))}", flush=True)
     finally:
         journey.observer_stop.set()
@@ -421,8 +446,9 @@ def main():
                 journey.cleanup()
         except Exception as error:
             success = False
+            reason = reason or f"Cleanup failed for {journey.name}: {error}"
             print(f"[e2e] Cleanup failed for {journey.name}: {error}", flush=True)
-        (journey.artifacts / "result.json").write_text(json.dumps({"passed": success, "run": journey.name}))
+        journey.record_result(success, reason)
         print(f"[e2e] {'PASSED' if success else 'FAILED'}; artifacts: {journey.artifacts}", flush=True)
     return 0 if success else 1
 
