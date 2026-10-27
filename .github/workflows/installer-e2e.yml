@@ -19,14 +19,14 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: '26'
           cache: npm
           cache-dependency-path: tests/installer/package-lock.json
       - name: Download the release candidate binary
         if: inputs.binary-artifact != ''
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: ${{ inputs.binary-artifact }}
           path: release-assets
@@ -43,7 +43,7 @@ jobs:
         if: inputs.binary-artifact == ''
         with:
           toolchain: stable
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
         if: inputs.binary-artifact == ''
       - name: Build standalone manual-run candidate
         if: inputs.binary-artifact == ''
@@ -81,7 +81,7 @@ jobs:
         run: python tests/installer/run.py --binary target/e2e/kubarr
       - name: Upload timings and failure diagnostics
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: installer-e2e-${{ github.run_id }}-${{ github.run_attempt }}
           path: tests/installer/artifacts/
