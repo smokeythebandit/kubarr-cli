@@ -24,7 +24,7 @@ ROOT = HERE.parents[1]
 REGISTRY = "oci://ghcr.io/smokeythebandit/kubarr-charts"
 KIND_IMAGE = "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0"
 NFS_IMAGE = "itsthenetwork/nfs-server-alpine:12"
-SONARR_VERSION = "4.0.20+12"
+SONARR_VERSION = "4.0.20+13"
 RELEASES = {
     "fluent-bit": ("fluent-bit", "daemonset/fluent-bit"),
     "victorialogs": ("victorialogs", "deployment/victorialogs"),
