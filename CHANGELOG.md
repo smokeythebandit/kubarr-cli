@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.10
+
+- Prepare every writable NFS subdirectory from one shared chart helper as the
+  application's own unprivileged identity. Eleven applications previously left
+  their directories for kubelet to create as root, which a normal export
+  squashes, so they could not start on a root-squashed share at all.
+- Replace the privileged `mkdir`/`chown` preparation in Jenkins, SCM-Manager,
+  Redmine and Immich, which root squashing defeated, and cover every writable
+  mount rather than only each workload's required target.
+- Give Sonarr `/media/shows` and Radarr `/media/movies`, matching their location
+  in the export, and register each as a root folder without manual setup.
+- Serve the library to Jellyfin and Plex read-only at `/media`, so every
+  application agrees on one path.
+- Pin the regenerated database, logging, metrics, worker and backend charts.
+
+Requires a library stored under `media/shows` and `media/movies`. An existing
+installation keeps its files where they are: move them and re-point the root
+folders and media libraries before upgrading.
+
 ## 0.2.9
 
 - Pin database chart `16.15.0+9`, which prepares its own NFS subdirectory as an
