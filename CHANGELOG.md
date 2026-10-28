@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.11
+
+- Pin gateway chart `1.29.2+5.10`, which compresses responses, caches
+  content-hashed assets permanently and reuses upstream connections. The
+  frontend bundle now reaches browsers as 296KB rather than 1.05MB, and a
+  repeat visit stops revalidating every asset.
+- The gateway caches each route and app-authorization decision in shared
+  memory, keyed by a digest of the session cookies, so one page's asset
+  requests no longer each pay for a backend round trip. Only grants are
+  cached; denials and errors are always re-checked, within a five-second
+  window that is configurable per installation.
+- Pin database chart `16.15.0+11`, logging chart `5.1.5+12` and managed-NFS
+  chart `12.0.0+4`, which stop PostgreSQL, Fluent Bit and managed NFS from
+  offering a dashboard tile for a web UI they do not serve.
+
 ## 0.2.10
 
 - Prepare every writable NFS subdirectory from one shared chart helper as the
