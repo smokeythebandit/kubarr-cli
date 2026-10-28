@@ -76,6 +76,9 @@ pub fn run_bootstrap_install(options: &BootstrapOptions) -> Result<(), String> {
     install_fluent_bit(options)?;
     install_victorialogs(options)?;
     install_victoriametrics(options)?;
+    // After the metrics store exists, so the scrape target is there before
+    // Hubble starts exporting.
+    crate::cni::ensure_hubble_metrics(options)?;
     if options.grafana_enabled {
         install_grafana(options)?;
     }
@@ -120,15 +123,15 @@ mod tests {
         assert_eq!(commands.len(), 10);
         for (name, version) in [
             ("managed-nfs", "12.0.0+4"),
-            ("fluent-bit", "5.1.5+12"),
+            ("fluent-bit", "5.1.5+14"),
             ("victorialogs", "1.53.0+10"),
-            ("victoriametrics", "1.154.1+12"),
+            ("victoriametrics", "1.154.1+15"),
             ("grafana", "13.2.4"),
             ("postgresql", "16.15.0+11"),
-            ("kubarr-backend", "0.3.4+1"),
-            ("kubarr-frontend", "0.3.4"),
+            ("kubarr-backend", "0.3.5"),
+            ("kubarr-frontend", "0.3.5"),
             ("openresty", "1.29.2+5.10"),
-            ("kubarr-worker", "0.3.4+1"),
+            ("kubarr-worker", "0.3.5"),
         ] {
             let command = commands
                 .iter()

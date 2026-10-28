@@ -1201,7 +1201,10 @@ mod tests {
         DEADLINE_POD.with(|flag| flag.set(true));
         let (result, stages, _) = fake_run(None, false, false, None, None, false);
         DEADLINE_POD.with(|flag| flag.set(false));
-        assert!(result.is_err(), "a killed probe never confirms the file test");
+        assert!(
+            result.is_err(),
+            "a killed probe never confirms the file test"
+        );
         let message = stages[3].message.as_str();
         assert_eq!(stages[3].state, "failed");
         assert!(

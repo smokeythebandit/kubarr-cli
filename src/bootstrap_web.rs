@@ -1691,7 +1691,10 @@ fn print_welcome(
         println!("  Then open the 127.0.0.1 link above on your computer.");
         println!(
             "  {}",
-            terminal_paint("Other addresses depend on routing and firewall access.", DIM)
+            terminal_paint(
+                "Other addresses depend on routing and firewall access.",
+                DIM
+            )
         );
     }
     println!("\n  {}", terminal_paint("NEXT", BOLD));
@@ -1736,11 +1739,15 @@ pub fn run_web(port: u16) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     runtime.block_on(async move {
         let listener = tokio::net::TcpListener::bind(SocketAddr::from((bind, port)))
-            .await.map_err(|err| format!("could not bind bootstrap UI: {err}"))?;
+            .await
+            .map_err(|err| format!("could not bind bootstrap UI: {err}"))?;
         let port = listener.local_addr().map_err(|err| err.to_string())?.port();
         let hosts = candidate_hosts(mode);
-        let allowed: HashSet<String> = hosts.iter().chain(std::iter::once(&"localhost".to_string()))
-            .map(|host| authority(host, port)).collect();
+        let allowed: HashSet<String> = hosts
+            .iter()
+            .chain(std::iter::once(&"localhost".to_string()))
+            .map(|host| authority(host, port))
+            .collect();
         let invite = token()?;
         let session = token()?;
         let csrf = token()?;
@@ -1748,20 +1755,33 @@ pub fn run_web(port: u16) -> Result<(), String> {
         // All fallible setup above precedes creation of the persistent local
         // diagnostic file. No later setup failure leaves an orphaned log.
         let (diagnostic_path, diagnostics) = install_events::create_diagnostic_log()?;
-        let app = App { shared: Arc::new(Mutex::new(Shared {
-            invitation: Some(invite.clone()), session, csrf,
-            phase: Phase::Ready, events: vec![], result: None,
-            access: None, installed_target: None,
-            log_lines: Default::default(), log_bytes: 0, log_truncated: false,
-        })), hosts: Arc::new(allowed), installer: run_bootstrap_install,
-        diagnostics: Some(diagnostics), completion: Arc::new(Notify::new()), targets,
-         checks: Arc::new(Mutex::new(CheckState::default())),
-         check_runner: real_check_runner,
-         storage: Arc::new(Mutex::new(StorageState::default())),
-         storage_runner: storage_probe::run,
-         loadbalancer: Arc::new(Mutex::new(LoadBalancerState::default())),
-         loadbalancer_runner: loadbalancer_probe::run,
-         access_reader: install_access::refresh_loadbalancer };
+        let app = App {
+            shared: Arc::new(Mutex::new(Shared {
+                invitation: Some(invite.clone()),
+                session,
+                csrf,
+                phase: Phase::Ready,
+                events: vec![],
+                result: None,
+                access: None,
+                installed_target: None,
+                log_lines: Default::default(),
+                log_bytes: 0,
+                log_truncated: false,
+            })),
+            hosts: Arc::new(allowed),
+            installer: run_bootstrap_install,
+            diagnostics: Some(diagnostics),
+            completion: Arc::new(Notify::new()),
+            targets,
+            checks: Arc::new(Mutex::new(CheckState::default())),
+            check_runner: real_check_runner,
+            storage: Arc::new(Mutex::new(StorageState::default())),
+            storage_runner: storage_probe::run,
+            loadbalancer: Arc::new(Mutex::new(LoadBalancerState::default())),
+            loadbalancer_runner: loadbalancer_probe::run,
+            access_reader: install_access::refresh_loadbalancer,
+        };
         print_welcome(mode, bind, port, &hosts, &invite, &diagnostic_path);
         if mode == Environment::Desktop {
             let url = format!("http://127.0.0.1:{port}/#{invite}");
@@ -1770,9 +1790,12 @@ pub fn run_web(port: u16) -> Result<(), String> {
             }
         }
         let server = axum::serve(listener, router(app.clone()));
-        server.with_graceful_shutdown(graceful_shutdown(app, async {
-            let _ = tokio::signal::ctrl_c().await;
-        })).await.map_err(|err| err.to_string())
+        server
+            .with_graceful_shutdown(graceful_shutdown(app, async {
+                let _ = tokio::signal::ctrl_c().await;
+            }))
+            .await
+            .map_err(|err| err.to_string())
     })
 }
 

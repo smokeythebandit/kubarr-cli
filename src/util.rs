@@ -1136,7 +1136,10 @@ mod tests {
         let _ = std::fs::remove_file(marker);
         assert_eq!(result.unwrap_err(), INSTALL_TIMEOUT_MESSAGE);
         assert!(elapsed < Duration::from_secs(2));
-        assert!(!helper_survived, "timed-out helper continued to mutate state");
+        assert!(
+            !helper_survived,
+            "timed-out helper continued to mutate state"
+        );
         assert!(diagnostic.contains("PRIVATE_stdout"));
         assert!(diagnostic.contains("PRIVATE_stderr"));
         let lines: Vec<_> = rx

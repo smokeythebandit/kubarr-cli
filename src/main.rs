@@ -4,6 +4,7 @@ mod charts;
 mod checks;
 mod checks_data;
 mod cluster;
+mod cni;
 mod database;
 mod db_bootstrap;
 mod doctor;

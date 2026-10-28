@@ -16,6 +16,8 @@ pub fn install_fluent_bit(options: &BootstrapOptions) -> Result<(), String> {
     set_values.extend(indexed_set_values(
         "fluentbit.allowedNamespaces",
         &[
+            // Hubble's flow metrics live on the Cilium agents.
+            "kube-system",
             "sonarr",
             "radarr",
             "qbittorrent",
