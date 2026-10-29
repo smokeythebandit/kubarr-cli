@@ -66,12 +66,12 @@ pub fn hubble_upgrade_args(release: &str, namespace: &str) -> Vec<String> {
         "--reuse-values".to_string(),
         "--set".to_string(),
         format!("hubble.metrics.enabled={{{FLOW_METRIC},{DROP_METRIC}}}"),
-        "--set".to_string(),
-        "podAnnotations.prometheus\\.io/scrape=true".to_string(),
-        "--set".to_string(),
-        "podAnnotations.prometheus\\.io/port=9965".to_string(),
-        "--set".to_string(),
-        "podAnnotations.prometheus\\.io/path=/metrics".to_string(),
+        // Nothing annotates the agent Pods here on purpose. Enabling the
+        // metrics makes Cilium's own chart create a `hubble-metrics` Service
+        // already carrying `prometheus.io/scrape`, and VictoriaMetrics
+        // discovers Services as well as Pods. Annotating the Pods too gives
+        // the same counters two scrape paths, and every `sum by (destination)`
+        // then reports double the real flow rate.
         "--timeout".to_string(),
         crate::util::HELM_TIMEOUT.to_string(),
     ]
@@ -189,12 +189,25 @@ mod tests {
         assert!(args
             .iter()
             .any(|arg| arg.contains("destinationContext=namespace|identity")));
-        // Without the scrape annotations VictoriaMetrics never collects it.
-        assert!(args
-            .iter()
-            .any(|arg| arg.contains("prometheus\\.io/scrape")));
-        assert!(args.iter().any(|arg| arg.contains("9965")));
         // Never re-pin the chart version of a running CNI.
         assert!(!args.iter().any(|arg| arg == "--version"));
+    }
+
+    #[test]
+    fn the_upgrade_adds_no_scrape_annotations_of_its_own() {
+        let args = hubble_upgrade_args("cilium", "kube-system");
+
+        // Enabling the metrics is enough: Cilium's chart then creates a
+        // `hubble-metrics` Service that already carries
+        // `prometheus.io/scrape`. VictoriaMetrics discovers Services and Pods
+        // both, so annotating the agent Pods as well gives one counter two
+        // scrape paths. That was measured on the production cluster: 146
+        // identical series under `job="kubernetes-pods"` and 146 more under
+        // `job="kubernetes-services"`, which made every class total exactly
+        // twice the real flow rate.
+        assert!(
+            !args.iter().any(|arg| arg.contains("podAnnotations")),
+            "pod annotations duplicate the Service scrape: {args:?}"
+        );
     }
 }
