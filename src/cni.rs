@@ -66,6 +66,13 @@ pub fn hubble_upgrade_args(release: &str, namespace: &str) -> Vec<String> {
         "--reuse-values".to_string(),
         "--set".to_string(),
         format!("hubble.metrics.enabled={{{FLOW_METRIC},{DROP_METRIC}}}"),
+        // Hubble counts connection events and carries no byte field anywhere,
+        // so without this the network page can only ever report connections
+        // per second. Conntrack accounting fills in per-connection byte
+        // counters, which the flow exporter samples. It is off by default
+        // upstream because it costs a counter update per packet.
+        "--set".to_string(),
+        "bpf.ctAccounting=true".to_string(),
         // Nothing annotates the agent Pods here on purpose. Enabling the
         // metrics makes Cilium's own chart create a `hubble-metrics` Service
         // already carrying `prometheus.io/scrape`, and VictoriaMetrics
@@ -191,6 +198,18 @@ mod tests {
             .any(|arg| arg.contains("destinationContext=namespace|identity")));
         // Never re-pin the chart version of a running CNI.
         assert!(!args.iter().any(|arg| arg == "--version"));
+    }
+
+    #[test]
+    fn the_upgrade_turns_on_conntrack_byte_accounting() {
+        // Without it every byte figure on the network page is zero: Cilium
+        // leaves the conntrack counters at 0 unless this is set, and Hubble has
+        // no byte field to fall back on.
+        let args = hubble_upgrade_args("cilium", "kube-system");
+        assert!(
+            args.iter().any(|arg| arg == "bpf.ctAccounting=true"),
+            "{args:?}"
+        );
     }
 
     #[test]
