@@ -19,7 +19,15 @@ use std::time::{Duration, Instant};
 
 use serde::Serialize;
 
-const PROBE_LIMIT: usize = 32 * 1024;
+/// How much probe output is kept.
+///
+/// This was 32 KiB, and `kubectl get nodes -o json` on a three-node cluster
+/// produced 33,494 bytes -- 726 over. The JSON was cut mid-document, failed to
+/// parse, and the GPU check reported "could not verify ... check node list
+/// permissions and API access" on a cluster whose GPU was working. Most of the
+/// payload is the list of images cached on each node, which no check reads, so
+/// the old cap was only ever one node away from being too small.
+const PROBE_LIMIT: usize = 4 * 1024 * 1024;
 const PROBE_TIMEOUT: Duration = Duration::from_secs(4);
 pub const CHECK_DEADLINE: Duration = Duration::from_secs(90);
 
@@ -131,6 +139,9 @@ fn simple_check(
 pub struct ProbeResult {
     pub success: bool,
     pub output: String,
+    /// True when output hit `PROBE_LIMIT` and was cut. A caller that parses
+    /// structured output must not treat a truncated document as valid.
+    pub truncated: bool,
 }
 
 // Keep this allowlist aligned with code/api/src/services/gpu.rs GPU_RESOURCES.
@@ -146,9 +157,16 @@ const GPU_RESOURCES: &[&str] = &[
 fn gpu_check(result: Option<ProbeResult>) -> (&'static str, &'static str) {
     const UNAVAILABLE: &str = "No supported GPU resources advertised by Ready, schedulable nodes. GPU acceleration is optional; configure passthrough, drivers and a supported device plugin to enable it.";
     const UNVERIFIED: &str = "Could not verify GPU resources on the selected cluster. Check node list permissions and API access; GPU acceleration is optional.";
+    const TOO_LARGE: &str = "The node list was too large to read in full, so GPU resources could not be checked. GPU acceleration is optional.";
     let Some(out) = result.filter(|out| out.success) else {
         return ("warning", UNVERIFIED);
     };
+    // A truncated document can still parse as something, and silently
+    // reporting "check your permissions" for what is really an output cap is
+    // how this looked like an access problem on a healthy cluster.
+    if out.truncated {
+        return ("warning", TOO_LARGE);
+    }
     let Ok(nodes) = serde_json::from_str::<serde_json::Value>(&out.output) else {
         return ("warning", UNVERIFIED);
     };
@@ -222,6 +240,7 @@ pub fn probe_with_timeout(
             return Some(ProbeResult {
                 success: false,
                 output: String::new(),
+                truncated: false,
             })
         }
     };
@@ -249,6 +268,7 @@ pub fn probe_with_timeout(
     }
     let mut data = Vec::new();
     let mut eof = false;
+    let mut truncated = false;
     let mut status = None;
     let end = deadline.min(Instant::now() + timeout);
     loop {
@@ -273,6 +293,9 @@ pub fn probe_with_timeout(
                     }
                     Ok(size) => {
                         let remain = PROBE_LIMIT.saturating_sub(data.len());
+                        if size > remain {
+                            truncated = true;
+                        }
                         data.extend_from_slice(&buffer[..size.min(remain)]);
                     }
                     Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
@@ -317,6 +340,7 @@ pub fn probe_with_timeout(
                 return Some(ProbeResult {
                     success: exited.success(),
                     output: String::from_utf8(data).unwrap_or_default(),
+                    truncated,
                 });
             }
         }
@@ -624,6 +648,41 @@ mod web_tests {
     }
 
     #[test]
+    fn truncated_node_output_is_not_reported_as_a_permissions_problem() {
+        // The bug: `kubectl get nodes -o json` on three nodes was 33,494
+        // bytes against a 32 KiB cap, so the JSON was cut, failed to parse,
+        // and the GPU check said to check node list permissions and API
+        // access -- on a cluster whose GPU was advertising 8 slots.
+        let (state, message) = gpu_check(Some(ProbeResult {
+            success: true,
+            output: "{\"items\":[{\"status\":{\"alloc".to_string(),
+            truncated: true,
+        }));
+        assert_eq!(state, "warning");
+        assert!(
+            message.contains("too large"),
+            "truncation must say so, not blame access: {message}"
+        );
+        assert!(!message.contains("permissions"), "{message}");
+    }
+
+    #[test]
+    fn a_gpu_node_is_still_detected_in_untruncated_output() {
+        let (state, _) = gpu_check(Some(ProbeResult {
+            success: true,
+            output: serde_json::json!({"items":[{
+                "status":{
+                    "conditions":[{"type":"Ready","status":"True"}],
+                    "allocatable":{"gpu.intel.com/i915":"8"}
+                }
+            }]})
+            .to_string(),
+            truncated: false,
+        }));
+        assert_eq!(state, "passed");
+    }
+
+    #[test]
     fn synthetic_stdout_is_bounded_and_status_is_real() {
         let cancelled = AtomicBool::new(false);
         let result = probe(
@@ -634,7 +693,25 @@ mod web_tests {
         )
         .unwrap();
         assert!(result.success);
-        assert_eq!(result.output.len(), PROBE_LIMIT);
+        // Under the cap: kept whole, and not flagged. This is the case that
+        // broke -- a three-node `kubectl get nodes -o json` is ~33 KiB, which
+        // the old 32 KiB cap cut mid-document.
+        assert!(result.output.len() < PROBE_LIMIT);
+        assert!(!result.truncated);
+
+        let overflowing = probe(
+            "/bin/sh",
+            &["-c", "yes fake-secret | dd bs=1024 count=8192 2>/dev/null"],
+            &cancelled,
+            Instant::now() + Duration::from_secs(10),
+        )
+        .unwrap();
+        // Over the cap: bounded, and said so. Silently handing a cut-off
+        // document to a parser is what reported a healthy cluster as a
+        // permissions problem.
+        assert_eq!(overflowing.output.len(), PROBE_LIMIT);
+        assert!(overflowing.truncated);
+
         let failure = probe(
             "/bin/sh",
             &["-c", "printf 'private-token'; exit 7"],
@@ -722,6 +799,7 @@ mod web_tests {
             gpu_check(Some(ProbeResult {
                 success: true,
                 output: json!({"items": nodes}).to_string(),
+                truncated: false,
             }))
             .0
         };
@@ -778,14 +856,17 @@ mod web_tests {
             Some(ProbeResult {
                 success: false,
                 output: "private-token".into(),
+                truncated: false,
             }),
             Some(ProbeResult {
                 success: true,
                 output: "private-token".into(),
+                truncated: false,
             }),
             Some(ProbeResult {
                 success: true,
                 output: "{}".into(),
+                truncated: false,
             }),
         ] {
             let (state, message) = gpu_check(result);

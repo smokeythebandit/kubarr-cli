@@ -101,6 +101,10 @@ mod tests {
     #[test]
     fn every_remote_bootstrap_release_uses_an_explicit_chart_revision() {
         let _guard = INSTALL_TEST_LOCK.lock().unwrap();
+        // Resolve from the pins, not the registry. A unit test that reaches
+        // the network is slow, fails offline, and here would hold the shared
+        // install lock across a dozen HTTPS round trips.
+        std::env::set_var(crate::charts::VERSION_SOURCE_ENV, "pinned");
         let (tx, rx) = mpsc::channel();
         install_events::set_install_log(tx);
         let result = run_bootstrap_install(&BootstrapOptions {
@@ -112,6 +116,7 @@ mod tests {
             grafana_enabled: true,
         });
         install_events::clear_install_log();
+        std::env::remove_var(crate::charts::VERSION_SOURCE_ENV);
         result.unwrap();
         let commands: Vec<String> = rx
             .into_iter()

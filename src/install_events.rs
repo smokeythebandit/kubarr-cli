@@ -95,6 +95,8 @@ pub enum Stage {
     VictoriaMetrics,
     VictoriaLogs,
     Grafana,
+    CidrIdentities,
+    Hubble,
     Database,
     Install,
     Done,
@@ -116,8 +118,8 @@ impl Stage {
             VictoriaMetrics => "VictoriaMetrics",
             VictoriaLogs => "VictoriaLogs",
             Grafana => "Grafana",
-            Hubble => "Hubble metrics",
             CidrIdentities => "Network identities",
+            Hubble => "Network flows",
             Database => "Database",
             Install => "Install",
             Done => "Done",
@@ -139,6 +141,8 @@ impl Stage {
             "VictoriaMetrics" => VictoriaMetrics,
             "VictoriaLogs" => VictoriaLogs,
             "Grafana" => Grafana,
+            "Network identities" => CidrIdentities,
+            "Network flows" => Hubble,
             "Database" => Database,
             "Install" => Install,
             "Done" => Done,
@@ -371,6 +375,70 @@ fn slot() -> &'static Mutex<Option<InstallSink>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every stage, so the round-trip below cannot silently skip one.
+    const ALL_STAGES: &[Stage] = &[
+        Stage::Cluster,
+        Stage::Tools,
+        Stage::Nodes,
+        Stage::Apis,
+        Stage::Permissions,
+        Stage::Optional,
+        Stage::Storage,
+        Stage::StorageConfig,
+        Stage::FluentBit,
+        Stage::VictoriaMetrics,
+        Stage::VictoriaLogs,
+        Stage::Grafana,
+        Stage::CidrIdentities,
+        Stage::Hubble,
+        Stage::Database,
+        Stage::Install,
+        Stage::Done,
+    ];
+
+    #[test]
+    fn every_stage_name_maps_back_to_the_same_stage() {
+        // `name` and `from_heading` are inverses, and nothing checked it.
+        // Two stages were missing from the enum entirely, so their arms in
+        // `name` were bare bindings rather than patterns: `Hubble` matched
+        // every remaining value, and Database, Install and Done all rendered
+        // as "Hubble metrics".
+        for stage in ALL_STAGES {
+            let heading = stage.name();
+            let back = Stage::from_heading(heading)
+                .unwrap_or_else(|| panic!("{heading} does not map back to a stage"));
+            assert_eq!(
+                back.name(),
+                heading,
+                "{heading} round-tripped to {}",
+                back.name()
+            );
+        }
+    }
+
+    #[test]
+    fn stage_names_are_distinct() {
+        // Two stages sharing a name is how the broken arm hid: several stages
+        // all answered "Hubble metrics".
+        let mut names: Vec<&str> = ALL_STAGES.iter().map(|s| s.name()).collect();
+        names.sort_unstable();
+        let total = names.len();
+        names.dedup();
+        assert_eq!(names.len(), total, "two stages share a name");
+    }
+
+    #[test]
+    fn the_headings_the_installer_emits_are_known_stages() {
+        // These strings are written in cni.rs. If either side is edited alone
+        // the step stops being tracked, which is what happened to both.
+        for heading in ["Network identities", "Network flows"] {
+            assert!(
+                Stage::from_heading(heading).is_some(),
+                "{heading} is emitted by the installer but is not a stage"
+            );
+        }
+    }
 
     #[test]
     fn diagnostic_file_stays_bounded_across_repeated_failures() {

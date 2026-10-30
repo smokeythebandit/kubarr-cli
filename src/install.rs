@@ -1,6 +1,6 @@
 use std::env;
 
-use crate::charts::pinned_version;
+use crate::charts::resolve_version;
 use crate::install_events::Operation;
 use crate::style::detail;
 use crate::types::{
@@ -145,7 +145,7 @@ fn install_release(
 ) -> Result<(), String> {
     let chart = chart_ref(chart_name, chart_ref_default);
     detail("chart", &chart);
-    let version = pinned_version(chart_name, &chart)?;
+    let version = resolve_version(chart_name, &chart)?;
 
     // Keep Helm 3's client-side apply and readiness checks explicit under Helm 4.
     let mut helm_args = vec![
@@ -161,7 +161,7 @@ fn install_release(
     ];
     if let Some(version) = version {
         let version = if release == "openresty" {
-            options.gateway_chart_version.as_deref().unwrap_or(version)
+            options.gateway_chart_version.clone().unwrap_or(version)
         } else {
             version
         };

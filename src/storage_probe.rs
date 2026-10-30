@@ -899,8 +899,8 @@ mod tests {
         let pod_reads = std::sync::atomic::AtomicUsize::new(0);
         MOCK.with(|mock| *mock.borrow_mut() = Some(Box::new(move |args, manifest| {
             let mut objects = saved.lock().unwrap();
-            let success = |output: String| Some(checks::ProbeResult { success: true, output });
-            let failure = || Some(checks::ProbeResult { success: false, output: "secret-error-must-not-escape".into() });
+            let success = |output: String| Some(checks::ProbeResult { success: true, output, truncated: false });
+            let failure = || Some(checks::ProbeResult { success: false, output: "secret-error-must-not-escape".into(), truncated: false });
             if let Some(manifest) = manifest {
                 if args.first() == Some(&"delete") {
                     let uri = args.get(2).copied().unwrap_or("");

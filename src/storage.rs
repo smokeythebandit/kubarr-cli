@@ -1,7 +1,7 @@
 use std::net::{TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
-use crate::charts::pinned_version;
+use crate::charts::resolve_version;
 use crate::install_events::Operation;
 use crate::style::{detail, ok, step, warn};
 use crate::types::{
@@ -59,7 +59,7 @@ fn perform_storage_install(options: &StorageOptions) -> Result<(), String> {
     detail("release", &options.release);
     detail("namespace", &options.namespace);
     let chart = chart_ref("managed-nfs", MANAGED_NFS_CHART_REF);
-    let version = pinned_version("managed-nfs", &chart)?;
+    let version = resolve_version("managed-nfs", &chart)?;
     let implementation = if options.dry_run {
         "ganesha".to_string()
     } else {

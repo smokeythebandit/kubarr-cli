@@ -176,8 +176,9 @@ fn chart_metadata(cancelled: &AtomicBool, end: Instant) -> Result<ChartMetadata,
             .map(|out| out.output)
             .ok_or_else(|| UNAVAILABLE.to_string())
     };
+    let resolved = crate::charts::resolve_version("openresty", &chart)?;
     let mut metadata_args = vec!["show", "chart", &chart];
-    if let Some(version) = crate::charts::pinned_version("openresty", &chart)? {
+    if let Some(version) = resolved.as_deref() {
         metadata_args.extend(["--version", version]);
     }
     let info = invoke(&metadata_args)?;
@@ -651,6 +652,7 @@ mod tests {
                 Some(ProbeResult {
                     success: true,
                     output: foreign.to_string(),
+                    truncated: false,
                 })
             }))
         });
@@ -706,12 +708,14 @@ mod tests {
                     Some(ProbeResult {
                         success: true,
                         output,
+                        truncated: false,
                     })
                 };
                 let fail = || {
                     Some(ProbeResult {
                         success: false,
                         output: "private credentials".into(),
+                        truncated: false,
                     })
                 };
                 if args.is_empty() {
@@ -878,11 +882,13 @@ mod tests {
                     return Some(ProbeResult {
                         success: true,
                         output: "{}".into(),
+                        truncated: false,
                     });
                 }
                 Some(ProbeResult {
                     success: true,
                     output: object.to_string(),
+                    truncated: false,
                 })
             }))
         });
@@ -910,11 +916,13 @@ mod tests {
                         } else {
                             String::new()
                         },
+                        truncated: false,
                     });
                 }
                 Some(ProbeResult {
                     success: false,
                     output: "private cloud token".into(),
+                    truncated: false,
                 })
             }))
         });

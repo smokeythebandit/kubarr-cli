@@ -84,7 +84,8 @@ pub fn hubble_upgrade_args(release: &str, namespace: &str) -> Vec<String> {
     ]
 }
 
-const IDENTITIES_CHART: &str = "oci://ghcr.io/smokeythebandit/charts/kubarr-cilium-identities";
+const IDENTITIES_CHART: &str =
+    "oci://ghcr.io/smokeythebandit/kubarr-charts/kubarr-cilium-identities";
 const IDENTITIES_RELEASE: &str = "kubarr-cilium-identities";
 
 /// Install the chart whose policy mints CIDR identities for the LAN ranges.
@@ -99,7 +100,7 @@ pub fn install_cidr_identities(options: &BootstrapOptions) -> Result<(), String>
         "installing LAN CIDR identities with Helm",
     );
     let chart = crate::util::chart_ref("kubarr-cilium-identities", IDENTITIES_CHART);
-    let version = crate::charts::pinned_version("kubarr-cilium-identities", &chart)?;
+    let version = crate::charts::resolve_version("kubarr-cilium-identities", &chart)?;
 
     let mut args = vec![
         "upgrade".to_string(),
@@ -198,6 +199,22 @@ mod tests {
             .any(|arg| arg.contains("destinationContext=namespace|identity")));
         // Never re-pin the chart version of a running CNI.
         assert!(!args.iter().any(|arg| arg == "--version"));
+    }
+
+    #[test]
+    fn the_identities_chart_lives_where_every_other_chart_does() {
+        // This was the one reference in the CLI pointing at
+        // ghcr.io/.../charts/ instead of ghcr.io/.../kubarr-charts/, and the
+        // whole install died on it:
+        //   FetchReference ... kubarr-cilium-identities:1.20.4: not found
+        assert!(
+            IDENTITIES_CHART.starts_with("oci://ghcr.io/smokeythebandit/kubarr-charts/"),
+            "{IDENTITIES_CHART}"
+        );
+        assert_eq!(
+            IDENTITIES_CHART.rsplit('/').next(),
+            Some("kubarr-cilium-identities")
+        );
     }
 
     #[test]

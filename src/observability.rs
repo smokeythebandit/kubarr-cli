@@ -1,4 +1,4 @@
-use crate::charts::pinned_version;
+use crate::charts::resolve_version;
 use crate::install_events::Operation;
 use crate::style::{detail, step};
 use crate::types::{
@@ -264,7 +264,7 @@ fn install_chart(
     detail("release", release);
     detail("namespace", namespace);
     detail("chart", &chart);
-    let version = pinned_version(chart_name, &chart)?;
+    let version = resolve_version(chart_name, &chart)?;
 
     let mut args = vec![
         "upgrade".to_string(),
