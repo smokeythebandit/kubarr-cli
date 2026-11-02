@@ -242,11 +242,11 @@ impl InstallOptions {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::install_events::{self, INSTALL_TEST_LOCK};
+    use crate::install_events::{self, install_test_lock};
     use std::sync::mpsc;
 
     fn plans(options: &InstallOptions) -> Vec<String> {
-        let _guard = INSTALL_TEST_LOCK.lock().unwrap();
+        let _guard = install_test_lock();
         let (tx, rx) = mpsc::channel();
         install_events::set_install_log(tx);
         perform_install_with_storage(options, &[]).unwrap();

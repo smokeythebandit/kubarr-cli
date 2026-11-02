@@ -105,13 +105,13 @@ pub fn run_bootstrap_install(options: &BootstrapOptions) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::install_events::{self, InstallEvent, INSTALL_TEST_LOCK};
+    use crate::install_events::{self, InstallEvent, install_test_lock};
     use crate::types::{BootstrapStorageOptions, InstallOptions, StorageOptions};
     use std::sync::mpsc;
 
     #[test]
     fn every_remote_bootstrap_release_uses_an_explicit_chart_revision() {
-        let _guard = INSTALL_TEST_LOCK.lock().unwrap();
+        let _guard = install_test_lock();
         // Resolve from the pins, not the registry. A unit test that reaches
         // the network is slow, fails offline, and here would hold the shared
         // install lock across a dozen HTTPS round trips.

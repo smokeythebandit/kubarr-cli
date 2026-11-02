@@ -1830,7 +1830,7 @@ mod tests {
     use std::time::Duration;
     use tower::ServiceExt;
 
-    use crate::install_events::INSTALL_TEST_LOCK;
+    use crate::install_events::install_test_lock;
 
     fn fixture() -> App {
         App {
@@ -1931,7 +1931,7 @@ mod tests {
 
     #[tokio::test]
     async fn loadbalancer_routes_gate_only_the_fresh_selected_context_and_reject_local_k3s() {
-        let _lock = INSTALL_TEST_LOCK.lock().unwrap();
+        let _lock = install_test_lock();
         let app = fixture();
         app.shared.lock().unwrap().invitation = None;
         let target = synthetic_target(&app);
@@ -2141,7 +2141,7 @@ mod tests {
 
     #[tokio::test]
     async fn cancelled_loadbalancer_cleanup_blocks_start_even_for_other_access_modes() {
-        let _lock = INSTALL_TEST_LOCK.lock().unwrap();
+        let _lock = install_test_lock();
         LB_CLEANUP_ENTERED.store(false, Ordering::Release);
         LB_CLEANUP_RELEASED.store(false, Ordering::Release);
         let mut app = fixture();
@@ -2280,7 +2280,7 @@ mod tests {
 
     #[tokio::test]
     async fn storage_routes_auth_canonicalization_expiry_and_start_gate() {
-        let _lock = INSTALL_TEST_LOCK.lock().unwrap();
+        let _lock = install_test_lock();
         let app = fixture();
         app.shared.lock().unwrap().invitation = None;
         let target = synthetic_target(&app);
@@ -2488,7 +2488,7 @@ mod tests {
 
     #[tokio::test]
     async fn start_rejects_managed_and_local_modes_until_cancelled_storage_cleanup_finishes() {
-        let _lock = INSTALL_TEST_LOCK.lock().unwrap();
+        let _lock = install_test_lock();
         STORAGE_CLEANUP_ENTERED.store(false, Ordering::Release);
         STORAGE_CLEANUP_RELEASED.store(false, Ordering::Release);
         let mut app = fixture();
@@ -3397,7 +3397,7 @@ mod tests {
 
     #[tokio::test]
     async fn upload_returns_only_display_choices_and_selected_id_scopes_installation() {
-        let _lock = INSTALL_TEST_LOCK.lock().unwrap();
+        let _lock = install_test_lock();
         let mut app = fixture();
         app.installer = fake_targeted_install;
         app.shared.lock().unwrap().invitation = None;
@@ -3465,7 +3465,7 @@ mod tests {
 
     #[tokio::test]
     async fn http_starts_at_most_once_and_exposes_safe_terminal_status() {
-        let _lock = INSTALL_TEST_LOCK.lock().unwrap();
+        let _lock = install_test_lock();
         let app = fixture();
         app.shared.lock().unwrap().invitation = None;
         let router = router(app.clone());
@@ -3501,7 +3501,7 @@ mod tests {
 
     #[tokio::test]
     async fn http_survives_injected_install_failure() {
-        let _lock = INSTALL_TEST_LOCK.lock().unwrap();
+        let _lock = install_test_lock();
         let mut app = fixture();
         app.installer = fake_failure;
         app.shared.lock().unwrap().invitation = None;
@@ -3549,7 +3549,7 @@ mod tests {
 
     #[tokio::test]
     async fn injected_install_has_bounded_safe_progress_and_terminal_result() {
-        let _lock = INSTALL_TEST_LOCK.lock().unwrap();
+        let _lock = install_test_lock();
         for (installer, expected) in [
             (
                 fake_success as fn(&BootstrapOptions) -> Result<(), String>,
@@ -3585,7 +3585,7 @@ mod tests {
 
     #[test]
     fn event_history_keeps_only_the_latest_safe_messages() {
-        let _lock = INSTALL_TEST_LOCK.lock().unwrap();
+        let _lock = install_test_lock();
         let app = fixture();
         let options = serde_json::from_value::<Form>(valid_form())
             .unwrap()
@@ -3651,7 +3651,7 @@ mod tests {
 
     #[tokio::test]
     async fn curated_log_retains_older_than_status_and_excludes_secrets_on_failure() {
-        let _lock = INSTALL_TEST_LOCK.lock().unwrap();
+        let _lock = install_test_lock();
         let app = fixture();
         app.shared.lock().unwrap().invitation = None;
         let options = serde_json::from_value::<Form>(valid_form())
@@ -3776,7 +3776,7 @@ mod tests {
 
     #[tokio::test]
     async fn installer_publishes_structured_access_only_on_success() {
-        let _lock = INSTALL_TEST_LOCK.lock().unwrap();
+        let _lock = install_test_lock();
         fn with_access(_: &BootstrapOptions) -> Result<(), String> {
             install_events::access(install_access::resolve_access(WebAccess::PortForward));
             Ok(())
@@ -3810,7 +3810,7 @@ mod tests {
 
     #[test]
     fn installer_keeps_new_local_target_after_worker_scope_ends() {
-        let _lock = INSTALL_TEST_LOCK.lock().unwrap();
+        let _lock = install_test_lock();
         fn local_install(_: &BootstrapOptions) -> Result<(), String> {
             crate::util::set_target(CommandTarget {
                 kubeconfig: "/private/new-local".into(),
@@ -4061,7 +4061,7 @@ mod tests {
 
     #[tokio::test]
     async fn status_reports_fixed_tool_error_even_without_any_progress() {
-        let _lock = INSTALL_TEST_LOCK.lock().unwrap();
+        let _lock = install_test_lock();
         let app = fixture();
         app.shared.lock().unwrap().invitation = None;
         let options = serde_json::from_value::<Form>(valid_form())
@@ -4084,7 +4084,7 @@ mod tests {
 
     #[tokio::test]
     async fn typed_progress_is_detailed_but_http_never_receives_commands_or_secrets() {
-        let _lock = INSTALL_TEST_LOCK.lock().unwrap();
+        let _lock = install_test_lock();
         for uploaded in [false, true] {
             let mut app = fixture();
             let (path, log) = install_events::create_diagnostic_log().unwrap();
@@ -4128,7 +4128,7 @@ mod tests {
 
     #[tokio::test]
     async fn http_status_filters_sensitive_node_output_and_unknown_progress() {
-        let _lock = INSTALL_TEST_LOCK.lock().unwrap();
+        let _lock = install_test_lock();
         let app = fixture();
         app.shared.lock().unwrap().invitation = None;
         let options = serde_json::from_value::<Form>(valid_form())
@@ -4154,7 +4154,7 @@ mod tests {
 
     #[tokio::test]
     async fn subprocess_failure_is_diagnosable_locally_without_exposing_output_over_http() {
-        let _lock = INSTALL_TEST_LOCK.lock().unwrap();
+        let _lock = install_test_lock();
         let (path, log) = install_events::create_diagnostic_log().unwrap();
         #[cfg(unix)]
         {

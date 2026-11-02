@@ -310,6 +310,20 @@ pub fn record_command_failure(program: &str, stdout: &[u8], stderr: &[u8]) {
 #[cfg(test)]
 pub static INSTALL_TEST_LOCK: Mutex<()> = Mutex::new(());
 
+/// Serialise the tests that share the global install log.
+///
+/// A test that fails while holding this lock used to poison it, so the real
+/// failure arrived buried under a dozen sibling tests panicking with
+/// `PoisonError`. The data behind it is a `()`: there is no invariant for a
+/// panic to have broken, so the guard is recovered and the one true failure
+/// stays legible.
+#[cfg(test)]
+pub fn install_test_lock() -> std::sync::MutexGuard<'static, ()> {
+    INSTALL_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 pub fn set_install_log(sender: Sender<InstallEvent>) {
     *slot().lock().expect("install log mutex poisoned") = Some(InstallSink {
         sender,
@@ -479,3 +493,4 @@ mod tests {
         std::fs::remove_file(path).unwrap();
     }
 }
+

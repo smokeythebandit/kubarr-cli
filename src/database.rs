@@ -102,14 +102,14 @@ fn storage_set_values(options: &BootstrapOptions) -> Vec<(String, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::install_events::{self, InstallEvent, INSTALL_TEST_LOCK};
+    use crate::install_events::{self, InstallEvent, install_test_lock};
     use crate::types::{
         BootstrapStorageOptions, ClusterMode, InstallOptions, StorageOptions, DB_SECRET_NAME,
     };
     use std::sync::mpsc;
 
     fn plan() -> String {
-        let _guard = INSTALL_TEST_LOCK.lock().unwrap();
+        let _guard = install_test_lock();
         std::env::set_var(crate::charts::VERSION_SOURCE_ENV, "pinned");
         let (tx, rx) = mpsc::channel();
         install_events::set_install_log(tx);
