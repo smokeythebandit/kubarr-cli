@@ -11,6 +11,13 @@ pub const BOOTSTRAP_RELEASE_NAMESPACE: &str = "default";
 pub const DATABASE_CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/postgresql";
 pub const DATABASE_NAMESPACE: &str = "kubarr-database";
 pub const DATABASE_RELEASE: &str = "postgresql";
+pub const DATABASE_NAME: &str = "kubarr";
+pub const DATABASE_USER: &str = "kubarr";
+pub const DATABASE_SERVICE: &str = "kubarr-db-rw";
+/// Holds the platform database password. The CLI generates and owns it; the
+/// charts read it through `database.existingSecret`. A Secret is namespaced,
+/// so a copy lives in every namespace that connects to the database.
+pub const DB_SECRET_NAME: &str = "kubarr-db-app";
 pub const FLUENT_BIT_CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/fluent-bit";
 pub const FLUENT_BIT_NAMESPACE: &str = "fluent-bit";
 pub const FLUENT_BIT_RELEASE: &str = "fluent-bit";
@@ -36,6 +43,8 @@ pub const VICTORIAMETRICS_RELEASE: &str = "victoriametrics";
 pub const VICTORIALOGS_CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/victorialogs";
 pub const VICTORIALOGS_NAMESPACE: &str = "victorialogs";
 pub const VICTORIALOGS_RELEASE: &str = "victorialogs";
+pub const WORKER_NAMESPACE: &str = "kubarr-worker";
+pub const WORKER_RELEASE: &str = "kubarr-worker";
 
 pub struct InstallOptions {
     pub namespace: String,

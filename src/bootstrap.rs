@@ -3,6 +3,7 @@ use crate::checks::check_cluster_prerequisites;
 use crate::cluster::setup_cluster_if_needed;
 use crate::database::install_database;
 use crate::db_bootstrap::bootstrap_database;
+use crate::db_credentials::ensure_database_credentials;
 use crate::install::perform_bootstrap_install;
 use crate::install_access::print_access_hint;
 use crate::observability::{
@@ -87,6 +88,11 @@ pub fn run_bootstrap_install(options: &BootstrapOptions) -> Result<(), String> {
     if options.grafana_enabled {
         install_grafana(options)?;
     }
+    // Before the database chart, and before the backend and worker charts
+    // that read the same Secret: all three now refuse to render without a
+    // password, and the Secret has to exist in each namespace before their
+    // pods start, or the waited rollout never completes.
+    ensure_database_credentials(options.install.dry_run)?;
     install_database(options)?;
     step("Install", "installing Kubarr with Helm");
     perform_bootstrap_install(options)?;
@@ -131,20 +137,45 @@ mod tests {
             })
             .collect();
         assert_eq!(commands.len(), 12);
-        for (name, version) in [
-            ("managed-nfs", "12.0.0+4"),
-            ("fluent-bit", "5.1.5+14"),
-            ("victorialogs", "1.53.0+10"),
-            ("victoriametrics", "1.154.1+15"),
-            ("node-exporter", "1.10.2+1"),
-            ("kubarr-flow-exporter", "0.3.10+1"),
-            ("grafana", "13.2.4"),
-            ("postgresql", "16.15.0+11"),
-            ("kubarr-backend", "0.3.5"),
-            ("kubarr-frontend", "0.3.5"),
-            ("openresty", "1.29.2+5.10"),
-            ("kubarr-worker", "0.3.5"),
+        // Every chart that reads the platform database is told the Secret's
+        // name and nothing else; the password reaches the cluster only in the
+        // Secret the installer applied before any of these ran.
+        for name in ["postgresql", "kubarr-backend", "kubarr-worker"] {
+            let command = commands
+                .iter()
+                .find(|line| line.split_whitespace().any(|word| word == name))
+                .unwrap();
+            assert!(
+                command.contains("--set database.existingSecret=kubarr-db-app"),
+                "{name} install did not point at the credentials Secret: {command}"
+            );
+        }
+        for command in &commands {
+            assert!(
+                !command.to_ascii_lowercase().contains("password"),
+                "a Helm argument list carried a password: {command}"
+            );
+        }
+        // The expected revision is read from the pin table rather than copied
+        // here: a second copy of those versions is just somewhere else for
+        // them to go stale, which is what this test exists to prevent.
+        for name in [
+            "managed-nfs",
+            "fluent-bit",
+            "victorialogs",
+            "victoriametrics",
+            "node-exporter",
+            "kubarr-flow-exporter",
+            "grafana",
+            "postgresql",
+            "kubarr-backend",
+            "kubarr-frontend",
+            "openresty",
+            "kubarr-worker",
         ] {
+            let version = crate::charts::pinned_version(name, "oci://pin-table")
+                .unwrap_or_else(|error| panic!("{name}: {error}"))
+                .unwrap_or_else(|| panic!("{name} has no pinned revision"));
             let command = commands
                 .iter()
                 .find(|line| line.split_whitespace().any(|word| word == name))

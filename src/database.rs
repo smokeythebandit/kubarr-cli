@@ -3,7 +3,7 @@ use crate::install_events::Operation;
 use crate::style::{detail, step};
 use crate::types::{
     BootstrapOptions, StorageModeOption, BOOTSTRAP_RELEASE_NAMESPACE, DATABASE_CHART_REF,
-    DATABASE_NAMESPACE, DATABASE_RELEASE,
+    DATABASE_NAMESPACE, DATABASE_RELEASE, DB_SECRET_NAME,
 };
 use crate::util::{chart_ref, check_tool, try_run_or_print_progress};
 
@@ -32,6 +32,11 @@ pub fn install_database(options: &BootstrapOptions) -> Result<(), String> {
         format!("namespace.name={DATABASE_NAMESPACE}"),
         "--set".to_string(),
         "namespace.create=true".to_string(),
+        // The password itself never reaches Helm. The chart reads it out of
+        // the Secret the CLI wrote into this namespace; only its name travels
+        // as a value.
+        "--set".to_string(),
+        format!("database.existingSecret={DB_SECRET_NAME}"),
     ];
 
     if let Some(version) = version {
@@ -92,4 +97,59 @@ fn storage_set_values(options: &BootstrapOptions) -> Vec<(String, String)> {
     }
 
     values
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::install_events::{self, InstallEvent, INSTALL_TEST_LOCK};
+    use crate::types::{
+        BootstrapStorageOptions, ClusterMode, InstallOptions, StorageOptions, DB_SECRET_NAME,
+    };
+    use std::sync::mpsc;
+
+    fn plan() -> String {
+        let _guard = INSTALL_TEST_LOCK.lock().unwrap();
+        std::env::set_var(crate::charts::VERSION_SOURCE_ENV, "pinned");
+        let (tx, rx) = mpsc::channel();
+        install_events::set_install_log(tx);
+        install_database(&BootstrapOptions {
+            cluster_mode: ClusterMode::Existing,
+            install: InstallOptions::default_for_bootstrap(true),
+            storage: BootstrapStorageOptions {
+                mode: StorageModeOption::ManagedNfs(StorageOptions::default_managed(true)),
+            },
+            grafana_enabled: false,
+        })
+        .unwrap();
+        install_events::clear_install_log();
+        std::env::remove_var(crate::charts::VERSION_SOURCE_ENV);
+        rx.into_iter()
+            .filter_map(|event| match event {
+                InstallEvent::Legacy(line) if line.starts_with("[PLAN] helm upgrade") => Some(line),
+                _ => None,
+            })
+            .next()
+            .expect("no planned helm command")
+    }
+
+    #[test]
+    fn the_database_install_names_the_credentials_secret_and_carries_no_password() {
+        let command = plan();
+        assert!(
+            command.contains(&format!("--set database.existingSecret={DB_SECRET_NAME}")),
+            "{command}"
+        );
+        // The chart refuses to render without one of the two, so the absence
+        // of database.password is what proves the Secret is doing the work.
+        assert!(!command.contains("database.password"), "{command}");
+        assert!(!command.contains("POSTGRES_PASSWORD"), "{command}");
+        // Nothing that looks like a credential may appear as a value at all.
+        for word in command.split_whitespace() {
+            assert!(
+                !word.to_ascii_lowercase().contains("password") || word == "--set",
+                "suspicious helm argument {word:?} in {command}"
+            );
+        }
+    }
 }

@@ -483,9 +483,12 @@ fn run_command_with_interval(
 ) -> Result<std::process::ExitStatus, String> {
     let timeout = match operation {
         Some(Operation::K3s) => Duration::from_secs(30 * 60),
-        Some(Operation::StorageSecret | Operation::StorageRecord | Operation::AdminRecord) => {
-            Duration::from_secs(120)
-        }
+        Some(
+            Operation::StorageSecret
+            | Operation::DatabaseSecret
+            | Operation::StorageRecord
+            | Operation::AdminRecord,
+        ) => Duration::from_secs(120),
         _ => INSTALL_COMMAND_TIMEOUT,
     };
     run_command_with_timeout(command, label, input, operation, interval, timeout)

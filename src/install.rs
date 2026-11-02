@@ -5,8 +5,9 @@ use crate::install_events::Operation;
 use crate::style::detail;
 use crate::types::{
     BootstrapOptions, InstallOptions, StorageModeOption, WebAccess, APP_NAMESPACE,
-    BACKEND_CHART_REF, BACKEND_IMAGE, BOOTSTRAP_RELEASE_NAMESPACE, FRONTEND_CHART_REF,
-    FRONTEND_IMAGE, GATEWAY_CHART_REF, IMAGE_TAG, WORKER_CHART_REF, WORKER_IMAGE,
+    BACKEND_CHART_REF, BACKEND_IMAGE, BOOTSTRAP_RELEASE_NAMESPACE, DB_SECRET_NAME,
+    FRONTEND_CHART_REF, FRONTEND_IMAGE, GATEWAY_CHART_REF, IMAGE_TAG, WORKER_CHART_REF,
+    WORKER_IMAGE,
 };
 use crate::util::{chart_ref, check_tool, try_run_or_print_progress};
 
@@ -37,7 +38,12 @@ fn perform_install_with_storage(
         ("namespace.name".to_string(), "kubarr-backend".to_string()),
         (
             "database.secretName".to_string(),
-            "kubarr-db-app".to_string(),
+            DB_SECRET_NAME.to_string(),
+        ),
+        // Only the Secret's name; the password stays in the cluster.
+        (
+            "database.existingSecret".to_string(),
+            DB_SECRET_NAME.to_string(),
         ),
         ("image.repository".to_string(), backend_image),
         ("image.tag".to_string(), image_tag.clone()),
@@ -113,7 +119,11 @@ fn perform_install_with_storage(
         ("namespace.name".to_string(), "kubarr-worker".to_string()),
         (
             "database.secretName".to_string(),
-            "kubarr-db-app".to_string(),
+            DB_SECRET_NAME.to_string(),
+        ),
+        (
+            "database.existingSecret".to_string(),
+            DB_SECRET_NAME.to_string(),
         ),
         ("image.repository".to_string(), worker_image),
         ("image.tag".to_string(), image_tag),

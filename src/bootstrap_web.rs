@@ -1271,6 +1271,17 @@ fn safe_event(message: &str) -> Option<String> {
         "[WARN] k3s installed, but kubectl is not using it yet",
         "[WARN] try: export KUBECONFIG=/etc/rancher/k3s/k3s.yaml",
     ];
+    // Fixed, password-free text: the installer has to be able to say out loud
+    // that the database is still on the password the charts published.
+    if [
+        crate::db_credentials::PUBLISHED_PASSWORD_WARNING,
+        crate::db_credentials::PUBLISHED_PASSWORD_ROTATION,
+    ]
+    .iter()
+    .any(|warning| message == format!("[WARN] {warning}"))
+    {
+        return Some(message.to_string());
+    }
     if SAFE_DIAGNOSTICS.contains(&message)
         || REQUIRED_API_RESOURCES
             .iter()
@@ -1307,6 +1318,11 @@ fn safe_event(message: &str) -> Option<String> {
     None
 }
 
+#[cfg(test)]
+pub fn safe_failure_result_for_test(error: &str) -> String {
+    safe_failure_result(error)
+}
+
 fn safe_failure_result(error: &str) -> String {
     // Installer errors may contain file paths, command arguments, or tool text.
     // Only exact fixed messages can be returned; unknown errors stay generic.
@@ -1323,6 +1339,7 @@ fn safe_failure_result(error: &str) -> String {
         "required tool 'helm' was not found in PATH",
         "required tool 'kubectl' was not found in PATH",
         "required tool 'curl' was not found in PATH",
+        crate::db_credentials::CLUSTER_UNREADABLE,
     ] {
         if error == known {
             return known.to_string();
@@ -3919,6 +3936,58 @@ mod tests {
         ] {
             assert_eq!(safe_event(address).as_deref(), Some(address));
         }
+    }
+
+    #[test]
+    fn the_published_password_warning_reaches_the_browser_but_a_password_never_does() {
+        // These two are fixed strings with nothing interpolated, so the
+        // allowlist can carry them verbatim. If either is reworded without
+        // updating safe_event, the installer goes quiet about an install
+        // running on a password anyone can read in the charts.
+        for warning in [
+            crate::db_credentials::PUBLISHED_PASSWORD_WARNING,
+            crate::db_credentials::PUBLISHED_PASSWORD_ROTATION,
+        ] {
+            let message = format!("[WARN] {warning}");
+            assert_eq!(safe_event(&message).as_deref(), Some(message.as_str()));
+            assert!(
+                !warning.contains('{'),
+                "the warning interpolates something: {warning}"
+            );
+            assert!(message.len() <= MAX_EVENT_BYTES);
+        }
+        // Anything resembling the credential itself stays out, including the
+        // Secret's own YAML and the plan line that would have carried it.
+        for message in [
+            "[WARN] database password is hunter2",
+            "[OK] generated a new platform database password",
+            "  - password: hunter2",
+            "  password: \"hunter2\"",
+            "[WARN] the platform database is running on the password hunter2",
+        ] {
+            assert!(safe_event(message).is_none(), "browser leaked {message}");
+        }
+        // A planned or running command is always reduced to fixed text, so
+        // the withheld-manifest plan line cannot grow a password later.
+        assert_eq!(
+            safe_event("[PLAN] kubectl apply -f - (manifest withheld)").as_deref(),
+            Some("Running installation command\u{2026}")
+        );
+        // The typed progress line for the Secret write is a fixed
+        // description, not the command.
+        let line = install_events::InstallEvent::Progress {
+            operation: install_events::Operation::DatabaseSecret,
+            kind: install_events::ProgressKind::Success(Some(0)),
+            elapsed: Duration::from_secs(1),
+            since_start: Duration::from_secs(1),
+        }
+        .browser_line()
+        .unwrap();
+        assert!(
+            line.contains("Database: apply credentials Secret"),
+            "{line}"
+        );
+        assert!(!line.to_ascii_lowercase().contains("password"), "{line}");
     }
 
     fn fake_command_failure(_: &BootstrapOptions) -> Result<(), String> {

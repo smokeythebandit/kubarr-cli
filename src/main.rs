@@ -7,6 +7,7 @@ mod cluster;
 mod cni;
 mod database;
 mod db_bootstrap;
+mod db_credentials;
 mod doctor;
 mod install;
 mod install_access;
