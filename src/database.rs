@@ -102,7 +102,7 @@ fn storage_set_values(options: &BootstrapOptions) -> Vec<(String, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::install_events::{self, InstallEvent, install_test_lock};
+    use crate::install_events::{self, install_test_lock, InstallEvent};
     use crate::types::{
         BootstrapStorageOptions, ClusterMode, InstallOptions, StorageOptions, DB_SECRET_NAME,
     };

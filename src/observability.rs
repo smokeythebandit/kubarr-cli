@@ -240,7 +240,10 @@ pub fn install_node_exporter(options: &BootstrapOptions) -> Result<(), String> {
 /// `cni::ensure_hubble_metrics`, which sets `bpf.ctAccounting`: without that
 /// flag the map's byte counters stay at zero and this exports nothing.
 pub fn install_flow_exporter(options: &BootstrapOptions) -> Result<(), String> {
-    step("Flow Exporter", "installing per-class byte counters with Helm");
+    step(
+        "Flow Exporter",
+        "installing per-class byte counters with Helm",
+    );
     install_chart(
         "kubarr-flow-exporter",
         FLOW_EXPORTER_RELEASE,

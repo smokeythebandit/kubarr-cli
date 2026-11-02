@@ -105,7 +105,7 @@ pub fn run_bootstrap_install(options: &BootstrapOptions) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::install_events::{self, InstallEvent, install_test_lock};
+    use crate::install_events::{self, install_test_lock, InstallEvent};
     use crate::types::{BootstrapStorageOptions, InstallOptions, StorageOptions};
     use std::sync::mpsc;
 
