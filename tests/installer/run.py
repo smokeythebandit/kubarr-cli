@@ -24,7 +24,6 @@ ROOT = HERE.parents[1]
 REGISTRY = "oci://ghcr.io/smokeythebandit/kubarr-charts"
 KIND_IMAGE = "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0"
 NFS_IMAGE = "itsthenetwork/nfs-server-alpine:12"
-SONARR_VERSION = "4.0.20+14"
 RELEASES = {
     "fluent-bit": ("fluent-bit", "daemonset/fluent-bit"),
     "victorialogs": ("victorialogs", "deployment/victorialogs"),
@@ -182,10 +181,24 @@ class Journey:
 
     def setup(self):
         with self.stage("Prepare pinned charts and images"):
-            requested = {**self.versions, "sonarr": SONARR_VERSION}
+            # Sonarr is pulled only to pre-load its images; the catalog picks
+            # the revision it installs, so this run does not get to choose one.
+            # Which revision "newest" even means is ambiguous here: these charts
+            # carry build metadata (+N), which SemVer excludes from precedence,
+            # so 4.0.20+10 and 4.0.20+20 rank equally and a registry query can
+            # answer either. The revision assertion below therefore skips it.
+            sonarr = self.run("helm", "show", "chart", f"{REGISTRY}/sonarr", timeout=90)
+            sonarr_version = next(
+                line.split(":", 1)[1].strip()
+                for line in sonarr.splitlines()
+                if line.startswith("version:")
+            )
+            requested = {**self.versions, "sonarr": sonarr_version}
             with ThreadPoolExecutor(max_workers=4) as pool:
                 charts = list(pool.map(lambda item: self.prepare_chart(*item), requested.items()))
             self.versions = {name: version for name, version, _, _ in charts}
+            # Keep the bootstrap releases, whose revisions the CLI does pin.
+            self.versions.pop("sonarr", None)
             probe_image = re.search(r'const IMAGE: &str = "([^"]+)"', (ROOT / "src/storage_probe.rs").read_text())[1]
             images = {NFS_IMAGE, probe_image}
             for _, _, _, chart_images in charts:
