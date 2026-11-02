@@ -2,9 +2,11 @@ use crate::charts::resolve_version;
 use crate::install_events::Operation;
 use crate::style::{detail, step};
 use crate::types::{
-    BootstrapOptions, StorageModeOption, BOOTSTRAP_RELEASE_NAMESPACE, FLUENT_BIT_CHART_REF,
-    FLUENT_BIT_NAMESPACE, FLUENT_BIT_RELEASE, GRAFANA_CHART_REF, GRAFANA_NAMESPACE,
-    GRAFANA_RELEASE, VICTORIALOGS_CHART_REF, VICTORIALOGS_NAMESPACE, VICTORIALOGS_RELEASE,
+    BootstrapOptions, StorageModeOption, BOOTSTRAP_RELEASE_NAMESPACE, FLOW_EXPORTER_CHART_REF,
+    FLOW_EXPORTER_NAMESPACE, FLOW_EXPORTER_RELEASE, FLUENT_BIT_CHART_REF, FLUENT_BIT_NAMESPACE,
+    FLUENT_BIT_RELEASE, GRAFANA_CHART_REF, GRAFANA_NAMESPACE, GRAFANA_RELEASE,
+    NODE_EXPORTER_CHART_REF, NODE_EXPORTER_NAMESPACE, NODE_EXPORTER_RELEASE,
+    VICTORIALOGS_CHART_REF, VICTORIALOGS_NAMESPACE, VICTORIALOGS_RELEASE,
     VICTORIAMETRICS_CHART_REF, VICTORIAMETRICS_NAMESPACE, VICTORIAMETRICS_RELEASE,
 };
 use crate::util::{chart_ref, check_tool, try_run_or_print_progress};
@@ -65,6 +67,37 @@ pub fn install_fluent_bit(options: &BootstrapOptions) -> Result<(), String> {
     Ok(())
 }
 
+/// Namespaces VictoriaMetrics is allowed to scrape.
+///
+/// This list replaces the chart's own: `--set key[i]=` builds a fresh list, and
+/// Helm overwrites lists rather than merging them, so anything named only in
+/// values.yaml is dropped by the install. The three exporter namespaces have to
+/// be repeated here, or VM's default-deny egress blocks the scrape and the
+/// network page is silently empty.
+fn victoriametrics_scrape_namespaces(install_namespace: &str) -> Vec<&str> {
+    vec![
+        // Cilium's agents expose the Hubble flow metrics.
+        "kube-system",
+        // Kernel NFS client counters: storage traffic exists nowhere else.
+        "node-exporter",
+        // Per-class byte counters read from Cilium's conntrack map.
+        "kubarr-flow-exporter",
+        "sonarr",
+        "radarr",
+        "qbittorrent",
+        "transmission",
+        "deluge",
+        "rutorrent",
+        "jackett",
+        "jellyfin",
+        "jellyseerr",
+        "sabnzbd",
+        "victorialogs",
+        "fluent-bit",
+        install_namespace,
+    ]
+}
+
 pub fn install_victoriametrics(options: &BootstrapOptions) -> Result<(), String> {
     step("VictoriaMetrics", "installing metrics store with Helm");
     let mut set_values = indexed_set_values(
@@ -73,21 +106,7 @@ pub fn install_victoriametrics(options: &BootstrapOptions) -> Result<(), String>
     );
     set_values.extend(indexed_set_values(
         "networkPolicy.scrapeNamespaces",
-        &[
-            "sonarr",
-            "radarr",
-            "qbittorrent",
-            "transmission",
-            "deluge",
-            "rutorrent",
-            "jackett",
-            "jellyfin",
-            "jellyseerr",
-            "sabnzbd",
-            "victorialogs",
-            "fluent-bit",
-            options.install.namespace.as_str(),
-        ],
+        &victoriametrics_scrape_namespaces(options.install.namespace.as_str()),
     ));
     set_values.extend(storage_set_values(options));
     install_chart(
@@ -148,6 +167,78 @@ pub fn install_victorialogs(options: &BootstrapOptions) -> Result<(), String> {
             options.install.dry_run,
             false,
             Some(Operation::VictoriaLogsRollout),
+        )?;
+    }
+    Ok(())
+}
+
+/// Host metrics, and the only place NFS traffic is counted.
+///
+/// NFS is mounted by the node's kernel rather than by the pods that read it, so
+/// the bytes never cross a Cilium endpoint: Hubble and the conntrack map both
+/// measured zero while the share was moving hundreds of megabytes. The kernel's
+/// own client counters, which this exports, are where that traffic lives.
+pub fn install_node_exporter(options: &BootstrapOptions) -> Result<(), String> {
+    step("Node Exporter", "installing host metrics agent with Helm");
+    install_chart(
+        "node-exporter",
+        NODE_EXPORTER_RELEASE,
+        NODE_EXPORTER_CHART_REF,
+        NODE_EXPORTER_NAMESPACE,
+        &[],
+        false,
+        options.install.dry_run,
+    )?;
+    if options.install.wait {
+        try_run_or_print_progress(
+            "kubectl",
+            &[
+                "rollout",
+                "status",
+                "daemonset/node-exporter",
+                "-n",
+                NODE_EXPORTER_NAMESPACE,
+                crate::util::ROLLOUT_TIMEOUT,
+            ],
+            options.install.dry_run,
+            false,
+            Some(Operation::NodeExporterRollout),
+        )?;
+    }
+    Ok(())
+}
+
+/// Per-class byte counters, read from Cilium's conntrack map.
+///
+/// Hubble counts connection events and carries no byte field, so the
+/// internet/LAN/cluster split needs a second source. Install this after
+/// `cni::ensure_hubble_metrics`, which sets `bpf.ctAccounting`: without that
+/// flag the map's byte counters stay at zero and this exports nothing.
+pub fn install_flow_exporter(options: &BootstrapOptions) -> Result<(), String> {
+    step("Flow Exporter", "installing per-class byte counters with Helm");
+    install_chart(
+        "kubarr-flow-exporter",
+        FLOW_EXPORTER_RELEASE,
+        FLOW_EXPORTER_CHART_REF,
+        FLOW_EXPORTER_NAMESPACE,
+        &[],
+        false,
+        options.install.dry_run,
+    )?;
+    if options.install.wait {
+        try_run_or_print_progress(
+            "kubectl",
+            &[
+                "rollout",
+                "status",
+                "daemonset/kubarr-flow-exporter",
+                "-n",
+                FLOW_EXPORTER_NAMESPACE,
+                crate::util::ROLLOUT_TIMEOUT,
+            ],
+            options.install.dry_run,
+            false,
+            Some(Operation::FlowExporterRollout),
         )?;
     }
     Ok(())
@@ -292,12 +383,59 @@ fn install_chart(
     }
 
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    let operation = match chart_name {
+    let operation =
+        operation_for_chart(chart_name).ok_or_else(|| "unknown observability chart".to_string())?;
+    try_run_or_print_progress("helm", &refs, dry_run, false, Some(operation))
+}
+
+fn operation_for_chart(chart_name: &str) -> Option<Operation> {
+    Some(match chart_name {
         "fluent-bit" => Operation::FluentBit,
         "victorialogs" => Operation::VictoriaLogs,
         "victoriametrics" => Operation::VictoriaMetrics,
+        "node-exporter" => Operation::NodeExporter,
+        "kubarr-flow-exporter" => Operation::FlowExporter,
         "grafana" => Operation::Grafana,
-        _ => return Err("unknown observability chart".into()),
-    };
-    try_run_or_print_progress("helm", &refs, dry_run, false, Some(operation))
+        _ => return None,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn victoriametrics_scrapes_the_exporters_it_reads() {
+        // The scrape list the CLI passes replaces the chart's, so a namespace
+        // named only in values.yaml never reaches the policy. Both exporters
+        // and the Cilium agents were dropped exactly that way, leaving the
+        // network page empty with every chart installed and healthy.
+        let namespaces = victoriametrics_scrape_namespaces("kubarr");
+        for required in ["kube-system", "node-exporter", "kubarr-flow-exporter"] {
+            assert!(
+                namespaces.contains(&required),
+                "{required} is scraped by VictoriaMetrics but missing from the egress allow-list"
+            );
+        }
+        assert!(namespaces.contains(&"kubarr"), "install namespace dropped");
+    }
+
+    #[test]
+    fn every_observability_chart_has_an_operation() {
+        // install_chart errors out on an unknown name, which would fail the
+        // install at the last line of a Helm invocation that already ran.
+        for chart in [
+            "fluent-bit",
+            "victorialogs",
+            "victoriametrics",
+            "node-exporter",
+            "kubarr-flow-exporter",
+            "grafana",
+        ] {
+            assert!(
+                operation_for_chart(chart).is_some(),
+                "{chart} is installed here but has no install operation"
+            );
+        }
+    }
 }

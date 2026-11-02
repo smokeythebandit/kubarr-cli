@@ -14,12 +14,20 @@ pub const DATABASE_RELEASE: &str = "postgresql";
 pub const FLUENT_BIT_CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/fluent-bit";
 pub const FLUENT_BIT_NAMESPACE: &str = "fluent-bit";
 pub const FLUENT_BIT_RELEASE: &str = "fluent-bit";
+pub const FLOW_EXPORTER_CHART_REF: &str =
+    "oci://ghcr.io/smokeythebandit/kubarr-charts/kubarr-flow-exporter";
+pub const FLOW_EXPORTER_NAMESPACE: &str = "kubarr-flow-exporter";
+pub const FLOW_EXPORTER_RELEASE: &str = "kubarr-flow-exporter";
 pub const GRAFANA_CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/grafana";
 pub const GRAFANA_NAMESPACE: &str = "grafana";
 pub const GRAFANA_RELEASE: &str = "grafana";
 pub const MANAGED_NFS_CHART_REF: &str = "oci://ghcr.io/smokeythebandit/kubarr-charts/managed-nfs";
 pub const MANAGED_NFS_NAMESPACE: &str = "kubarr-storage";
 pub const MANAGED_NFS_RELEASE: &str = "managed-nfs";
+pub const NODE_EXPORTER_CHART_REF: &str =
+    "oci://ghcr.io/smokeythebandit/kubarr-charts/node-exporter";
+pub const NODE_EXPORTER_NAMESPACE: &str = "node-exporter";
+pub const NODE_EXPORTER_RELEASE: &str = "node-exporter";
 pub const STORAGE_SECRET_NAME: &str = "kubarr-storage-config";
 pub const VICTORIAMETRICS_CHART_REF: &str =
     "oci://ghcr.io/smokeythebandit/kubarr-charts/victoriametrics";

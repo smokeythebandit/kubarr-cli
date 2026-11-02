@@ -24,6 +24,10 @@ pub enum Operation {
     VictoriaLogsRollout,
     VictoriaMetrics,
     VictoriaMetricsRollout,
+    NodeExporter,
+    NodeExporterRollout,
+    FlowExporter,
+    FlowExporterRollout,
     Grafana,
     Hubble,
     CidrIdentities,
@@ -54,6 +58,10 @@ impl Operation {
             VictoriaLogsRollout => "VictoriaLogs: wait for Deployment rollout (workload namespace victorialogs)",
             VictoriaMetrics => "VictoriaMetrics: install/upgrade Helm release victoriametrics (release namespace default; workload namespace victoriametrics)",
             VictoriaMetricsRollout => "VictoriaMetrics: wait for Deployment rollout (workload namespace victoriametrics)",
+            NodeExporter => "Node Exporter: install/upgrade Helm release node-exporter (release namespace default; workload namespace node-exporter)",
+            NodeExporterRollout => "Node Exporter: wait for DaemonSet rollout (workload namespace node-exporter)",
+            FlowExporter => "Flow Exporter: install/upgrade Helm release kubarr-flow-exporter (release namespace default; workload namespace kubarr-flow-exporter)",
+            FlowExporterRollout => "Flow Exporter: wait for DaemonSet rollout (workload namespace kubarr-flow-exporter)",
             Grafana => "Grafana: install/upgrade Helm release grafana (release namespace default; workload namespace grafana)",
             Hubble => "Hubble: enable flow metrics on the existing Cilium release (namespace kube-system)",
             CidrIdentities => "Network identities: install/upgrade Helm release kubarr-cilium-identities (namespace kube-system)",
@@ -94,6 +102,8 @@ pub enum Stage {
     FluentBit,
     VictoriaMetrics,
     VictoriaLogs,
+    NodeExporter,
+    FlowExporter,
     Grafana,
     CidrIdentities,
     Hubble,
@@ -117,6 +127,8 @@ impl Stage {
             FluentBit => "Fluent Bit",
             VictoriaMetrics => "VictoriaMetrics",
             VictoriaLogs => "VictoriaLogs",
+            NodeExporter => "Node Exporter",
+            FlowExporter => "Flow Exporter",
             Grafana => "Grafana",
             CidrIdentities => "Network identities",
             Hubble => "Network flows",
@@ -140,6 +152,8 @@ impl Stage {
             "Fluent Bit" => FluentBit,
             "VictoriaMetrics" => VictoriaMetrics,
             "VictoriaLogs" => VictoriaLogs,
+            "Node Exporter" => NodeExporter,
+            "Flow Exporter" => FlowExporter,
             "Grafana" => Grafana,
             "Network identities" => CidrIdentities,
             "Network flows" => Hubble,
@@ -389,6 +403,8 @@ mod tests {
         Stage::FluentBit,
         Stage::VictoriaMetrics,
         Stage::VictoriaLogs,
+        Stage::NodeExporter,
+        Stage::FlowExporter,
         Stage::Grafana,
         Stage::CidrIdentities,
         Stage::Hubble,
@@ -432,7 +448,12 @@ mod tests {
     fn the_headings_the_installer_emits_are_known_stages() {
         // These strings are written in cni.rs. If either side is edited alone
         // the step stops being tracked, which is what happened to both.
-        for heading in ["Network identities", "Network flows"] {
+        for heading in [
+            "Network identities",
+            "Network flows",
+            "Node Exporter",
+            "Flow Exporter",
+        ] {
             assert!(
                 Stage::from_heading(heading).is_some(),
                 "{heading} is emitted by the installer but is not a stage"

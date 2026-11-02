@@ -1244,6 +1244,8 @@ fn safe_event(message: &str) -> Option<String> {
         "Fluent Bit",
         "VictoriaMetrics",
         "VictoriaLogs",
+        "Node Exporter",
+        "Flow Exporter",
         "Grafana",
         "Database",
         "Install",

@@ -83,6 +83,8 @@ pub fn pinned_version(name: &str, reference: &str) -> Result<Option<&'static str
         "victorialogs" => "1.53.0+10",
         "victoriametrics" => "1.154.1+15",
         "grafana" => "13.2.4",
+        "node-exporter" => "1.10.2+1",
+        "kubarr-flow-exporter" => "0.3.10+1",
         "kubarr-backend" => "0.3.5",
         "kubarr-frontend" => "0.3.5",
         "kubarr-worker" => "0.3.5",

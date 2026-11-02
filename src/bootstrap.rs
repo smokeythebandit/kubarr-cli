@@ -6,7 +6,8 @@ use crate::db_bootstrap::bootstrap_database;
 use crate::install::perform_bootstrap_install;
 use crate::install_access::print_access_hint;
 use crate::observability::{
-    install_fluent_bit, install_grafana, install_victorialogs, install_victoriametrics,
+    install_flow_exporter, install_fluent_bit, install_grafana, install_node_exporter,
+    install_victorialogs, install_victoriametrics,
 };
 use crate::storage::{configure_storage, write_storage_config};
 use crate::style::step;
@@ -78,7 +79,11 @@ pub fn run_bootstrap_install(options: &BootstrapOptions) -> Result<(), String> {
     install_victoriametrics(options)?;
     // After the metrics store exists, so the scrape target is there before
     // Hubble starts exporting.
+    install_node_exporter(options)?;
     crate::cni::ensure_hubble_metrics(options)?;
+    // Last of the exporters: it reads byte counters that Cilium only keeps once
+    // ensure_hubble_metrics has set bpf.ctAccounting.
+    install_flow_exporter(options)?;
     if options.grafana_enabled {
         install_grafana(options)?;
     }
@@ -125,12 +130,14 @@ mod tests {
                 _ => None,
             })
             .collect();
-        assert_eq!(commands.len(), 10);
+        assert_eq!(commands.len(), 12);
         for (name, version) in [
             ("managed-nfs", "12.0.0+4"),
             ("fluent-bit", "5.1.5+14"),
             ("victorialogs", "1.53.0+10"),
             ("victoriametrics", "1.154.1+15"),
+            ("node-exporter", "1.10.2+1"),
+            ("kubarr-flow-exporter", "0.3.10+1"),
             ("grafana", "13.2.4"),
             ("postgresql", "16.15.0+11"),
             ("kubarr-backend", "0.3.5"),
