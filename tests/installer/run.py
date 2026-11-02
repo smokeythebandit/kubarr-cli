@@ -165,6 +165,11 @@ class Journey:
                      "--destination", destination, timeout=90)
             chart, = destination.glob("*.tgz")
         extra = []
+        # These charts ship no default database password and refuse to render
+        # without one, so the image survey has to supply what the installer
+        # supplies: the name of the Secret bootstrap creates.
+        if name in ("postgresql", "kubarr-backend", "kubarr-worker"):
+            extra += ["--set", "database.existingSecret=kubarr-db-app"]
         if name in ("kubarr-backend", "kubarr-frontend", "kubarr-worker"):
             key = name.removeprefix("kubarr-").upper()
             for variable, setting in [(f"KUBARR_{key}_IMAGE", "image.repository"),
