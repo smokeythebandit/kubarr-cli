@@ -137,6 +137,44 @@ pub fn plan_database_storage(storage_classes_json: &str) -> DatabaseStorage {
     }
 }
 
+pub const TALOS_LOCAL_STORAGE_DOCS: &str =
+    "https://www.talos.dev/latest/kubernetes-guides/configuration/local-storage/";
+
+/// Whether any node runs Talos Linux (`status.nodeInfo.osImage` "Talos (vX)").
+pub fn runs_talos(nodes_json: &str) -> bool {
+    serde_json::from_str::<Value>(nodes_json)
+        .ok()
+        .and_then(|nodes| nodes.get("items")?.as_array().cloned())
+        .into_iter()
+        .flatten()
+        .any(|node| {
+            node.pointer("/status/nodeInfo/osImage")
+                .and_then(Value::as_str)
+                .is_some_and(|image| image.starts_with("Talos"))
+        })
+}
+
+/// [`plan_database_storage`], except on Talos: there the bundled provisioner's
+/// hostPath volumes fail to mount unless the node was prepared for them, so
+/// instead of installing it the install stops and says how to prepare storage.
+pub fn plan_database_storage_on(
+    storage_classes_json: &str,
+    nodes_json: &str,
+) -> Result<DatabaseStorage, String> {
+    let plan = plan_database_storage(storage_classes_json);
+    if plan.install_local_path && runs_talos(nodes_json) {
+        return Err(format!(
+            "this cluster runs Talos and has no non-NFS default StorageClass for the \
+             database. Kubarr's bundled local-path provisioner cannot create volumes on \
+             Talos without host preparation. Set up node-local storage first: a Talos \
+             UserVolume mounted under /var/mnt (for example \
+             /var/mnt/local-path-provisioner) with a local-path StorageClass on it, marked \
+             as the default -- see {TALOS_LOCAL_STORAGE_DOCS} -- then run the install again."
+        ));
+    }
+    Ok(plan)
+}
+
 /// A dry run reads nothing from the cluster, so it plans the fullest path: a
 /// cluster with no default StorageClass.
 pub fn detect_database_storage(dry_run: bool) -> Result<DatabaseStorage, String> {
@@ -145,7 +183,9 @@ pub fn detect_database_storage(dry_run: bool) -> Result<DatabaseStorage, String>
     }
     let classes = command_output("kubectl", &["get", "storageclass", "-o", "json"])
         .ok_or("could not list the cluster's StorageClasses to place the database")?;
-    Ok(plan_database_storage(&classes))
+    let nodes = command_output("kubectl", &["get", "nodes", "-o", "json"])
+        .ok_or("could not list the cluster's nodes to place the database")?;
+    plan_database_storage_on(&classes, &nodes)
 }
 
 #[cfg(test)]
@@ -322,5 +362,62 @@ mod tests {
                 .storage_class,
             "local-path"
         );
+    }
+
+    fn nodes_running(images: &[&str]) -> String {
+        let items: Vec<Value> = images
+            .iter()
+            .map(|image| json!({"status": {"nodeInfo": {"osImage": image}}}))
+            .collect();
+        json!({ "items": items }).to_string()
+    }
+
+    #[test]
+    fn talos_is_recognised_by_any_node_os_image() {
+        assert!(runs_talos(&nodes_running(&["Talos (v1.11.2)"])));
+        assert!(runs_talos(&nodes_running(&[
+            "Ubuntu 24.04.1 LTS",
+            "Talos (v1.12.0)"
+        ])));
+        assert!(!runs_talos(&nodes_running(&["Ubuntu 24.04.1 LTS"])));
+        assert!(!runs_talos(&nodes_running(&["K3s on Talosian Linux"])));
+        assert!(!runs_talos(&nodes_running(&[])));
+        assert!(!runs_talos("not json"));
+    }
+
+    #[test]
+    fn talos_without_local_storage_stops_instead_of_installing_local_path() {
+        let talos = nodes_running(&["Talos (v1.11.2)"]);
+        for missing in [
+            classes(&[]),
+            classes(&[("nfs", "kubarr.dev/nfs-subdir", true)]),
+        ] {
+            let error = plan_database_storage_on(&missing, &talos).unwrap_err();
+            assert!(error.contains("Talos"), "{error}");
+            assert!(error.contains("UserVolume"), "{error}");
+            assert!(error.contains("/var/mnt"), "{error}");
+            assert!(error.contains(TALOS_LOCAL_STORAGE_DOCS), "{error}");
+        }
+        // A Talos cluster that already has local storage as its default uses it.
+        let prepared = classes(&[("local-path", "rancher.io/local-path", true)]);
+        assert_eq!(
+            plan_database_storage_on(&prepared, &talos).unwrap(),
+            plan_database_storage(&prepared)
+        );
+    }
+
+    #[test]
+    fn other_clusters_still_get_the_bundled_local_path() {
+        let ubuntu = nodes_running(&["Ubuntu 24.04.1 LTS"]);
+        for case in [
+            classes(&[]),
+            classes(&[("nfs", "kubarr.dev/nfs-subdir", true)]),
+            classes(&[("longhorn", "driver.longhorn.io", true)]),
+        ] {
+            assert_eq!(
+                plan_database_storage_on(&case, &ubuntu).unwrap(),
+                plan_database_storage(&case)
+            );
+        }
     }
 }
