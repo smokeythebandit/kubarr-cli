@@ -78,21 +78,22 @@ pub fn pinned_version(name: &str, reference: &str) -> Result<Option<&'static str
     }
     let version = match name {
         "managed-nfs" => "12.0.0+6",
-        "local-path-provisioner" => "0.1.0",
+        "local-path-provisioner" => "0.1.1",
         "cloudnative-pg" => "0.1.0",
         // The CloudNativePG rewrite: a major bump over the StatefulSet chart.
         "postgresql" => "17.0.0",
         "fluent-bit" => "5.1.5+16",
-        "victorialogs" => "1.53.0+13",
-        "victoriametrics" => "1.154.1+20",
-        "grafana" => "13.2.4+2",
+        "victorialogs" => "1.53.0+14",
+        "victoriametrics" => "1.154.1+21",
+        "grafana" => "13.2.4+4",
         "node-exporter" => "1.10.2+1",
         "kubarr-flow-exporter" => "0.3.11",
-        // The first revisions that read kubarr.ha.nodeCount.
-        "kubarr-backend" => "0.3.11+2",
-        "kubarr-frontend" => "0.3.11+1",
-        "kubarr-worker" => "0.3.11+2",
-        "openresty" => "1.29.2+5.13",
+        // The first revisions whose spread skips tainted nodes; the worker's
+        // also carries the RBAC the HA reconciler needs.
+        "kubarr-backend" => "0.3.11+3",
+        "kubarr-frontend" => "0.3.11+2",
+        "kubarr-worker" => "0.3.11+4",
+        "openresty" => "1.29.2+5.14",
         "kubarr-cilium-identities" => "1.20.4",
         _ => return Err(format!("no pinned bootstrap chart version for '{name}'")),
     };
@@ -113,6 +114,67 @@ mod tests {
             pinned_version("openresty", "./charts/openresty").unwrap(),
             None
         );
+    }
+
+    /// Every pin equals the chart's own `version:` in a sibling kubarr-charts
+    /// checkout (or `KUBARR_CHARTS_CHECKOUT`). A pin left behind a chart
+    /// bump installs a revision without what the bump added -- the worker
+    /// pin once lacked the RBAC its HA reconciler needs. Skipped when no
+    /// checkout is present.
+    #[test]
+    fn pins_match_the_charts_checkout() {
+        let checkout = std::env::var_os("KUBARR_CHARTS_CHECKOUT")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| {
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../kubarr-charts")
+            });
+        let Ok(groups) = std::fs::read_dir(&checkout) else {
+            eprintln!(
+                "no kubarr-charts checkout at {}; skipping",
+                checkout.display()
+            );
+            return;
+        };
+        let mut versions = std::collections::HashMap::new();
+        for group in groups.flatten() {
+            let Ok(charts) = std::fs::read_dir(group.path()) else {
+                continue;
+            };
+            for chart in charts.flatten() {
+                let Ok(text) = std::fs::read_to_string(chart.path().join("Chart.yaml")) else {
+                    continue;
+                };
+                let meta: serde_yaml::Value = serde_yaml::from_str(&text).unwrap();
+                if let (Some(name), Some(version)) =
+                    (meta["name"].as_str(), meta["version"].as_str())
+                {
+                    versions.insert(name.to_string(), version.to_string());
+                }
+            }
+        }
+        // The pin table is the match in `pinned_version`, read from source so
+        // this list cannot drift from it.
+        let source = include_str!("charts.rs");
+        let table = source
+            .split_once("pub fn pinned_version")
+            .and_then(|(_, rest)| rest.split_once("#[cfg(test)]"))
+            .expect("pin table")
+            .0;
+        let pins: Vec<&str> = table
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix('"')?.split_once('"'))
+            .map(|(name, _)| name)
+            .collect();
+        assert!(pins.len() >= 10, "only parsed {} pins", pins.len());
+        for name in pins {
+            let pinned = pinned_version(name, "oci://registry/chart").unwrap();
+            assert_eq!(
+                versions.get(name).map(String::as_str),
+                pinned,
+                "pin for {name} differs from {}",
+                checkout.display()
+            );
+        }
     }
 
     #[test]
