@@ -182,7 +182,8 @@ fn chart_metadata(cancelled: &AtomicBool, end: Instant) -> Result<ChartMetadata,
         metadata_args.extend(["--version", version]);
     }
     let info = invoke(&metadata_args)?;
-    let metadata: Value = serde_yaml::from_str(&info).map_err(|_| UNAVAILABLE)?;
+    let metadata: Value =
+        serde_yaml::from_str(strip_helm_notices(&info, false)).map_err(|_| UNAVAILABLE)?;
     let version = metadata["version"]
         .as_str()
         .filter(|v| {
@@ -223,11 +224,28 @@ fn chart_metadata(cancelled: &AtomicBool, end: Instant) -> Result<ChartMetadata,
     parse_rendered(version, &rendered)
 }
 
+/// Helm 4 prints OCI pull notices on stdout before the payload. Drop them:
+/// `show chart` output starts at the first `apiVersion:` line; `template`
+/// output starts at the first `---`, `apiVersion:` or `# Source:` line.
+fn strip_helm_notices(out: &str, template: bool) -> &str {
+    let mut offset = 0;
+    for line in out.split_inclusive('\n') {
+        let l = line.trim_end_matches(['\r', '\n']);
+        let start = l.starts_with("apiVersion:")
+            || (template && (l == "---" || l.starts_with("# Source:")));
+        if start {
+            return &out[offset..];
+        }
+        offset += line.len();
+    }
+    out
+}
+
 fn parse_rendered(version: String, rendered: &str) -> Result<ChartMetadata, String> {
     const UNAVAILABLE: &str = "Could not resolve and render the gateway chart metadata. Check Helm and chart access, then retry the LoadBalancer test.";
     let mut namespace = None;
     let mut service = None;
-    for doc in serde_yaml::Deserializer::from_str(&rendered) {
+    for doc in serde_yaml::Deserializer::from_str(strip_helm_notices(rendered, true)) {
         let value: Value = Value::deserialize(doc).map_err(|_| UNAVAILABLE)?;
         match value["kind"].as_str() {
             Some("Namespace") if namespace.is_none() => namespace = Some(value),
@@ -581,6 +599,36 @@ fn run_with_limit(
 
 #[cfg(test)]
 mod tests {
+    const NOTICE: &str = "Pulled: ghcr.io/smokeythebandit/kubarr-charts/openresty:1.29.2_5.14\nDigest: sha256:513ef364fc\nghcr.io/smokeythebandit/kubarr-charts/openresty:1.29.2_5.14 contains an underscore.\n\nOCI artifact references (e.g. tags) do not support the plus sign (+). To support\nstoring semantic versions, Helm adopts the convention of changing plus (+) to\nan underscore (_) in chart version tags when pushing to a registry and back to\na plus (+) when pulling from a registry.\n";
+
+    #[test]
+    fn strips_notices_before_show_chart() {
+        let chart = "apiVersion: v2\nname: openresty\nversion: 1.29.2+5.14\n";
+        let out = format!("{NOTICE}{chart}");
+        assert_eq!(super::strip_helm_notices(&out, false), chart);
+        let v: serde_yaml::Value =
+            serde_yaml::from_str(super::strip_helm_notices(&out, false)).unwrap();
+        assert_eq!(v["name"], "openresty");
+    }
+
+    #[test]
+    fn strips_notices_before_template() {
+        let doc =
+            "---\n# Source: openresty/templates/namespace.yaml\napiVersion: v1\nkind: Namespace\n";
+        let out = format!("{NOTICE}{doc}");
+        assert_eq!(super::strip_helm_notices(&out, true), doc);
+        let no_sep = format!("{NOTICE}# Source: x\napiVersion: v1\nkind: Namespace\n");
+        assert!(super::strip_helm_notices(&no_sep, true).starts_with("# Source: x"));
+    }
+
+    #[test]
+    fn clean_helm_output_is_unchanged() {
+        let chart = "apiVersion: v2\nname: openresty\n";
+        assert_eq!(super::strip_helm_notices(chart, false), chart);
+        let doc = "---\napiVersion: v1\n";
+        assert_eq!(super::strip_helm_notices(doc, true), doc);
+    }
+
     use super::*;
     use std::sync::{Arc, Mutex};
 
