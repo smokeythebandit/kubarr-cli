@@ -78,17 +78,21 @@ pub fn pinned_version(name: &str, reference: &str) -> Result<Option<&'static str
     }
     let version = match name {
         "managed-nfs" => "12.0.0+6",
-        "postgresql" => "16.15.0+15",
+        "local-path-provisioner" => "0.1.0",
+        "cloudnative-pg" => "0.1.0",
+        // The CloudNativePG rewrite: a major bump over the StatefulSet chart.
+        "postgresql" => "17.0.0",
         "fluent-bit" => "5.1.5+16",
         "victorialogs" => "1.53.0+13",
         "victoriametrics" => "1.154.1+20",
         "grafana" => "13.2.4+2",
         "node-exporter" => "1.10.2+1",
         "kubarr-flow-exporter" => "0.3.11",
-        "kubarr-backend" => "0.3.11",
-        "kubarr-frontend" => "0.3.11",
-        "kubarr-worker" => "0.3.11",
-        "openresty" => "1.29.2+5.12",
+        // The first revisions that read kubarr.ha.nodeCount.
+        "kubarr-backend" => "0.3.11+2",
+        "kubarr-frontend" => "0.3.11+1",
+        "kubarr-worker" => "0.3.11+2",
+        "openresty" => "1.29.2+5.13",
         "kubarr-cilium-identities" => "1.20.4",
         _ => return Err(format!("no pinned bootstrap chart version for '{name}'")),
     };

@@ -139,8 +139,14 @@ fn parse_user_options(args: Vec<String>, allow_email: bool) -> UserOptions {
 
 fn run_psql(namespace: &str, sql: &str) {
     ensure_tool("kubectl");
+    let pod = crate::db_bootstrap::primary_pod(namespace).unwrap_or_else(|| {
+        eprintln!(
+            "could not find the CloudNativePG primary pod of the platform database in {namespace}"
+        );
+        std::process::exit(1);
+    });
     println!(
-        "    {} kubectl exec statefulset/kubarr-db -- psql",
+        "    {} kubectl exec {pod} -- psql",
         status_label("run", BLUE)
     );
     let status = Command::new("kubectl")
@@ -148,11 +154,11 @@ fn run_psql(namespace: &str, sql: &str) {
             "exec",
             "-n",
             namespace,
-            "statefulset/kubarr-db",
+            &pod,
             "--",
             "psql",
             "-U",
-            "kubarr",
+            "postgres",
             "-d",
             "kubarr",
             "-v",

@@ -1,7 +1,7 @@
 use crate::bootstrap_web::run_web;
 use crate::checks::check_cluster_prerequisites;
 use crate::cluster::setup_cluster_if_needed;
-use crate::database::install_database;
+use crate::database::{install_database, install_database_operator, install_database_storage};
 use crate::db_bootstrap::bootstrap_database;
 use crate::db_credentials::ensure_database_credentials;
 use crate::install::perform_bootstrap_install;
@@ -11,7 +11,8 @@ use crate::observability::{
     install_victorialogs, install_victoriametrics,
 };
 use crate::storage::{configure_storage, write_storage_config};
-use crate::style::step;
+use crate::style::{detail, step};
+use crate::topology::{detect_database_storage, detect_node_count};
 use crate::types::BootstrapOptions;
 use crate::types::{ClusterMode, StorageModeOption};
 use crate::util::{check_tool, has_help};
@@ -74,7 +75,15 @@ pub fn run_bootstrap_install(options: &BootstrapOptions) -> Result<(), String> {
         }
     }
 
+    let node_count = detect_node_count(options.install.dry_run)?;
+    step("Nodes", "sizing the installation to the schedulable nodes");
+    detail("schedulable nodes", &node_count.to_string());
+
     configure_storage(options)?;
+    // PostgreSQL keeps its data on node-local disk, never on the NFS share.
+    let database_storage = detect_database_storage(options.install.dry_run)?;
+    install_database_storage(options, &database_storage)?;
+    install_database_operator(options)?;
     install_fluent_bit(options)?;
     install_victorialogs(options)?;
     install_victoriametrics(options)?;
@@ -93,11 +102,11 @@ pub fn run_bootstrap_install(options: &BootstrapOptions) -> Result<(), String> {
     // password, and the Secret has to exist in each namespace before their
     // pods start, or the waited rollout never completes.
     ensure_database_credentials(options.install.dry_run)?;
-    install_database(options)?;
+    install_database(options, node_count, &database_storage)?;
     step("Install", "installing Kubarr with Helm");
-    perform_bootstrap_install(options)?;
+    perform_bootstrap_install(options, node_count)?;
     write_storage_config(options)?;
-    bootstrap_database(options)?;
+    bootstrap_database(options, node_count)?;
     print_access_hint(&options.install);
     Ok(())
 }
@@ -129,14 +138,71 @@ mod tests {
         install_events::clear_install_log();
         std::env::remove_var(crate::charts::VERSION_SOURCE_ENV);
         result.unwrap();
-        let commands: Vec<String> = rx
+        let plans: Vec<String> = rx
             .into_iter()
             .filter_map(|event| match event {
-                InstallEvent::Legacy(line) if line.starts_with("[PLAN] helm upgrade") => Some(line),
+                InstallEvent::Legacy(line) if line.starts_with("[PLAN]") => Some(line),
                 _ => None,
             })
             .collect();
-        assert_eq!(commands.len(), 12);
+        let commands: Vec<String> = plans
+            .iter()
+            .filter(|line| line.starts_with("[PLAN] helm upgrade"))
+            .cloned()
+            .collect();
+        // A dry run plans for a cluster with no default StorageClass, so the
+        // local-path provisioner is in the plan, set as the default.
+        assert_eq!(commands.len(), 14);
+        let position = |name: &str| {
+            commands
+                .iter()
+                .position(|line| line.split_whitespace().any(|word| word == name))
+                .unwrap_or_else(|| panic!("{name} is not installed: {commands:?}"))
+        };
+        // The operator's CRDs and webhook have to exist before the chart that
+        // renders a Cluster, and the volumes' StorageClass before either.
+        assert!(position("managed-nfs") < position("local-path-provisioner"));
+        assert!(position("local-path-provisioner") < position("cloudnative-pg"));
+        assert!(position("cloudnative-pg") < position("postgresql"));
+        assert!(position("postgresql") < position("kubarr-backend"));
+        assert!(commands[position("local-path-provisioner")]
+            .contains("--set storageClass.default=true"));
+        assert!(commands[position("postgresql")]
+            .contains("--set persistence.storageClassName=local-path"));
+        // Every chart that runs replicas is told how many nodes there are; a
+        // dry run reads no cluster and plans for one.
+        for name in [
+            "openresty",
+            "kubarr-backend",
+            "kubarr-frontend",
+            "kubarr-worker",
+            "postgresql",
+        ] {
+            assert!(
+                commands[position(name)].contains("--set kubarr.ha.nodeCount=1"),
+                "{name} install carries no node count: {}",
+                commands[position(name)]
+            );
+        }
+        // Single-replica components stay out of it.
+        for name in [
+            "managed-nfs",
+            "grafana",
+            "victoriametrics",
+            "cloudnative-pg",
+        ] {
+            assert!(!commands[position(name)].contains("kubarr.ha.nodeCount"));
+        }
+        // The postgresql release waits on the Cluster, not a StatefulSet.
+        assert!(
+            plans.iter().any(|line| line.contains(
+                "kubectl wait --for=condition=Ready cluster.postgresql.cnpg.io/kubarr-db -n kubarr-database --timeout=10m"
+            )),
+            "{plans:?}"
+        );
+        assert!(plans.iter().all(|line| !line.contains("statefulset")));
+        assert!(plans.iter().any(|line| line
+            .contains("kubectl wait --for=condition=Established crd/clusters.postgresql.cnpg.io")));
         // Every chart that reads the platform database is told the Secret's
         // name and nothing else; the password reaches the cluster only in the
         // Secret the installer applied before any of these ran.
@@ -161,6 +227,8 @@ mod tests {
         // them to go stale, which is what this test exists to prevent.
         for name in [
             "managed-nfs",
+            "local-path-provisioner",
+            "cloudnative-pg",
             "fluent-bit",
             "victorialogs",
             "victoriametrics",

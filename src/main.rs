@@ -8,6 +8,7 @@ mod cni;
 mod database;
 mod db_bootstrap;
 mod db_credentials;
+mod db_restore;
 mod doctor;
 mod install;
 mod install_access;
@@ -21,6 +22,7 @@ mod storage_probe;
 mod storage_secret;
 mod style;
 mod targets;
+mod topology;
 mod types;
 mod users;
 mod util;
@@ -58,6 +60,7 @@ fn run() -> Result<(), String> {
         "bootstrap" => bootstrap(args.collect())?,
         "doctor" => doctor(args.collect()),
         "users" => users(args.collect()),
+        "db" => db_restore::db(args.collect())?,
         other => return Err(format!("unknown command '{other}'. Run 'kubarr help'.")),
     }
 
@@ -66,6 +69,6 @@ fn run() -> Result<(), String> {
 
 fn print_help() {
     println!(
-        "kubarr {VERSION}\n\nUSAGE:\n    kubarr <COMMAND> [OPTIONS]\n\nCOMMANDS:\n    bootstrap   Set up Kubarr in the web interface\n    users       Manage Kubarr users\n    doctor      Check local tools and cluster access\n    version     Print CLI version\n    help        Print this help\n\nRun 'kubarr <COMMAND> --help' for command-specific help."
+        "kubarr {VERSION}\n\nUSAGE:\n    kubarr <COMMAND> [OPTIONS]\n\nCOMMANDS:\n    bootstrap   Set up Kubarr in the web interface\n    users       Manage Kubarr users\n    db          Restore the platform database from a backup\n    doctor      Check local tools and cluster access\n    version     Print CLI version\n    help        Print this help\n\nRun 'kubarr <COMMAND> --help' for command-specific help."
     );
 }

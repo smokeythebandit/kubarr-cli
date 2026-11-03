@@ -6,19 +6,23 @@ use crate::style::detail;
 use crate::types::{
     BootstrapOptions, InstallOptions, StorageModeOption, WebAccess, APP_NAMESPACE,
     BACKEND_CHART_REF, BACKEND_IMAGE, BOOTSTRAP_RELEASE_NAMESPACE, DB_SECRET_NAME,
-    FRONTEND_CHART_REF, FRONTEND_IMAGE, GATEWAY_CHART_REF, IMAGE_TAG, WORKER_CHART_REF,
-    WORKER_IMAGE,
+    FRONTEND_CHART_REF, FRONTEND_IMAGE, GATEWAY_CHART_REF, HA_NODE_COUNT_VALUE, IMAGE_TAG,
+    WORKER_CHART_REF, WORKER_IMAGE,
 };
 use crate::util::{chart_ref, check_tool, try_run_or_print_progress};
 
-pub fn perform_bootstrap_install(options: &BootstrapOptions) -> Result<(), String> {
+pub fn perform_bootstrap_install(
+    options: &BootstrapOptions,
+    node_count: u32,
+) -> Result<(), String> {
     let storage_values = storage_set_values(options);
-    perform_install_with_storage(&options.install, &storage_values)
+    perform_install_with_storage(&options.install, &storage_values, node_count)
 }
 
 fn perform_install_with_storage(
     options: &InstallOptions,
     storage_values: &[(String, String)],
+    node_count: u32,
 ) -> Result<(), String> {
     if !options.dry_run {
         check_tool("helm")?;
@@ -65,6 +69,7 @@ fn perform_install_with_storage(
         BACKEND_CHART_REF,
         options,
         &backend_sets,
+        node_count,
     )?;
 
     let frontend_sets = vec![
@@ -79,6 +84,7 @@ fn perform_install_with_storage(
         FRONTEND_CHART_REF,
         options,
         &frontend_sets,
+        node_count,
     )?;
 
     let mut gateway_sets = vec![
@@ -113,6 +119,7 @@ fn perform_install_with_storage(
         GATEWAY_CHART_REF,
         options,
         &gateway_sets,
+        node_count,
     )?;
 
     let mut worker_sets = vec![
@@ -142,6 +149,7 @@ fn perform_install_with_storage(
         WORKER_CHART_REF,
         options,
         &worker_sets,
+        node_count,
     )?;
     Ok(())
 }
@@ -152,6 +160,7 @@ fn install_release(
     chart_ref_default: &str,
     options: &InstallOptions,
     set_values: &[(String, String)],
+    node_count: u32,
 ) -> Result<(), String> {
     let chart = chart_ref(chart_name, chart_ref_default);
     detail("chart", &chart);
@@ -180,6 +189,11 @@ fn install_release(
     for (key, value) in set_values {
         helm_args.extend(["--set".to_string(), format!("{}={}", key, value)]);
     }
+    // Every Kubarr release runs replicas across nodes.
+    helm_args.extend([
+        "--set".to_string(),
+        format!("{HA_NODE_COUNT_VALUE}={node_count}"),
+    ]);
     if options.wait {
         helm_args.push("--wait=legacy".to_string());
     }
@@ -249,7 +263,7 @@ mod tests {
         let _guard = install_test_lock();
         let (tx, rx) = mpsc::channel();
         install_events::set_install_log(tx);
-        perform_install_with_storage(options, &[]).unwrap();
+        perform_install_with_storage(options, &[], 1).unwrap();
         install_events::clear_install_log();
         rx.into_iter()
             .filter_map(|event| match event {

@@ -14,6 +14,26 @@ pub const DATABASE_RELEASE: &str = "postgresql";
 pub const DATABASE_NAME: &str = "kubarr";
 pub const DATABASE_USER: &str = "kubarr";
 pub const DATABASE_SERVICE: &str = "kubarr-db-rw";
+/// The CloudNativePG `Cluster` the postgresql chart renders. CNPG names the
+/// read-write Service after it (`kubarr-db-rw`) and labels its pods
+/// `cnpg.io/cluster=kubarr-db`.
+pub const DATABASE_CLUSTER: &str = "kubarr-db";
+pub const DATABASE_CLUSTER_RESOURCE: &str = "cluster.postgresql.cnpg.io";
+pub const DATABASE_OPERATOR_CHART_REF: &str =
+    "oci://ghcr.io/smokeythebandit/kubarr-charts/cloudnative-pg";
+pub const DATABASE_OPERATOR_NAMESPACE: &str = "cnpg-system";
+pub const DATABASE_OPERATOR_RELEASE: &str = "cloudnative-pg";
+/// The operator Deployment: the upstream chart's fullname for a release that
+/// already carries the chart's name.
+pub const DATABASE_OPERATOR_DEPLOYMENT: &str = "cloudnative-pg";
+pub const DATABASE_CLUSTER_CRD: &str = "clusters.postgresql.cnpg.io";
+pub const LOCAL_PATH_CHART_REF: &str =
+    "oci://ghcr.io/smokeythebandit/kubarr-charts/local-path-provisioner";
+pub const LOCAL_PATH_RELEASE: &str = "local-path-provisioner";
+pub const LOCAL_PATH_STORAGE_CLASS: &str = "local-path";
+/// The Helm value every chart that runs more than one replica on a multi-node
+/// cluster reads.
+pub const HA_NODE_COUNT_VALUE: &str = "kubarr.ha.nodeCount";
 /// Holds the platform database password. The CLI generates and owns it; the
 /// charts read it through `database.existingSecret`. A Secret is namespaced,
 /// so a copy lives in every namespace that connects to the database.

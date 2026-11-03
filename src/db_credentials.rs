@@ -11,20 +11,25 @@
 //! * The password never leaves this module. It is never printed, never put in
 //!   an argument list, and never carried in an error. Only the Secret's *name*
 //!   travels to Helm.
-//! * An existing password is never regenerated. PostgreSQL applies
-//!   `POSTGRES_PASSWORD` only while it initialises an empty data directory, so
-//!   a fresh password on an existing database locks the platform out of its
-//!   own data.
+//! * An existing password is never regenerated. The database owner's password
+//!   is set when the data directory is initialised, so a fresh password on an
+//!   existing database locks the platform out of its own data.
 //! * The Secret lives in all three namespaces that read it. A Secret is not
 //!   readable across namespaces, and the backend and worker charts both point
 //!   `database.secretName` at `kubarr-db-app` in their own namespace.
+//!
+//! The database is a CloudNativePG `Cluster`, which bootstraps its owner from
+//! this same Secret (`bootstrap.initdb.secret`). CNPG requires that Secret to
+//! be `kubernetes.io/basic-auth` with a `username` matching the owner, so the
+//! Secret has exactly one owner -- this module -- and CNPG never generates its
+//! own `kubarr-db-app`.
 
 use crate::install_events::{self, Operation};
 use crate::style::{detail, ok, paint, status_label, step, warn, BLUE, CYAN, DIM};
 use crate::types::{
-    APP_NAMESPACE, BOOTSTRAP_RELEASE_NAMESPACE, DATABASE_NAME, DATABASE_NAMESPACE,
-    DATABASE_RELEASE, DATABASE_SERVICE, DATABASE_USER, DB_SECRET_NAME, WORKER_NAMESPACE,
-    WORKER_RELEASE,
+    APP_NAMESPACE, BOOTSTRAP_RELEASE_NAMESPACE, DATABASE_CLUSTER, DATABASE_CLUSTER_RESOURCE,
+    DATABASE_NAME, DATABASE_NAMESPACE, DATABASE_RELEASE, DATABASE_SERVICE, DATABASE_USER,
+    DB_SECRET_NAME, WORKER_NAMESPACE, WORKER_RELEASE,
 };
 use crate::util::{command_output, external_command};
 
@@ -51,7 +56,7 @@ pub const PUBLISHED_PASSWORD_WARNING: &str = "the platform database is running o
 /// Returned when the cluster cannot be read. Fixed text with nothing
 /// interpolated, so `safe_failure_result` can show it verbatim.
 pub const CLUSTER_UNREADABLE: &str = "Could not read the cluster's namespaces, so the platform database password cannot be chosen safely; installation was not changed.";
-pub const PUBLISHED_PASSWORD_ROTATION: &str = "to rotate it: ALTER USER kubarr inside the kubarr-db StatefulSet, write the new password into the kubarr-db-app Secret in kubarr-database, kubarr-backend and kubarr-worker, then restart the backend and worker";
+pub const PUBLISHED_PASSWORD_ROTATION: &str = "to rotate it: ALTER USER kubarr on the kubarr-db primary, write the new password into the kubarr-db-app Secret in kubarr-database, kubarr-backend and kubarr-worker, then restart the backend and worker";
 
 /// Every namespace that needs its own copy, with the Helm release that owns
 /// the namespace object once its chart is installed.
@@ -83,15 +88,13 @@ pub struct ClusterState {
     pub secret_password: Option<String>,
     /// `kubarr-db-app`'s `uri` key in `kubarr-database`.
     pub secret_uri: Option<String>,
-    /// Whether the `kubarr-db` StatefulSet exists in `kubarr-database`.
+    /// Whether the `kubarr-db` CloudNativePG Cluster exists in
+    /// `kubarr-database`.
     ///
-    /// This is the "is there already a data directory" signal. The database's
-    /// PGDATA is a *subPath* on the shared `media-data` claim, not a claim of
-    /// its own, so a PVC proves nothing -- `media-data` exists for every other
-    /// workload too. The StatefulSet is created by this one chart and by
-    /// nothing else, so if it is there the chart has run, and PostgreSQL has
-    /// initialised `/var/lib/postgresql/data/pgdata` with the password of the
-    /// day.
+    /// This is the "is there already a data directory" signal. The Cluster is
+    /// created by the postgresql chart and by nothing else, so if it is there
+    /// the chart has run and CNPG has initialised the database with the
+    /// password of the day.
     pub database_exists: bool,
 }
 
@@ -216,8 +219,8 @@ fn read_cluster_state() -> Result<ClusterState, String> {
             "kubectl",
             &[
                 "get",
-                "statefulset",
-                "kubarr-db",
+                DATABASE_CLUSTER_RESOURCE,
+                DATABASE_CLUSTER,
                 "-n",
                 DATABASE_NAMESPACE,
                 "-o",
@@ -294,8 +297,9 @@ fn manifest(password: &str, targets: &[(&str, &str)]) -> Result<String, String> 
                namespace: {namespace}\n  \
                annotations:\n    \
                  helm.sh/resource-policy: keep\n\
-             type: Opaque\n\
+             type: kubernetes.io/basic-auth\n\
              stringData:\n  \
+               username: \"{DATABASE_USER}\"\n  \
                password: \"{password}\"\n  \
                uri: \"{uri}\"\n"
         ));
@@ -350,7 +354,7 @@ mod tests {
     fn an_existing_database_keeps_its_password_and_only_a_fresh_one_gets_a_new_password() {
         // A Secret this CLI wrote: reused byte for byte, however the rest of
         // the cluster looks. Regenerating here locks the platform out, because
-        // POSTGRES_PASSWORD is only read while initdb runs.
+        // the owner password is only set while initdb runs.
         for database_exists in [true, false] {
             let existing = state(
                 Some("kept-verbatim"),
@@ -520,6 +524,12 @@ mod tests {
             first.matches(&format!("password: \"{password}\"")).count(),
             3
         );
+        // CloudNativePG bootstraps the database owner from this same Secret
+        // (`bootstrap.initdb.secret`), which it requires to be basic-auth
+        // with a username matching the owner.
+        assert_eq!(first.matches("type: kubernetes.io/basic-auth\n").count(), 3);
+        assert_eq!(first.matches("type: Opaque").count(), 0);
+        assert_eq!(first.matches("username: \"kubarr\"\n").count(), 3);
         assert_eq!(
             first
                 .matches(&format!(
@@ -604,7 +614,7 @@ mod cluster_tests {
                  case \"$*\" in *.data.password*) [ -f {dir}/password ] && cat {dir}/password ;; esac\n\
                  exit 0 ;;\n\
                  'get namespace') echo namespace/default; exit 0 ;;\n\
-                 'get statefulset') exit 1 ;;\n\
+                 'get cluster.postgresql.cnpg.io') exit 1 ;;\n\
                  'apply -f')\n\
                  cat > {dir}/latest\n\
                  cat {dir}/latest >> {dir}/applied\n\
@@ -664,7 +674,7 @@ mod cluster_tests {
             "an empty cluster must get a new password"
         );
         // A second bootstrap run finds the Secret and must keep it: PostgreSQL
-        // only honours POSTGRES_PASSWORD while initialising an empty data
+        // only sets the owner password while initialising an empty data
         // directory, so a new one here would lock the platform out.
         assert_eq!(
             ensure_database_credentials(false).unwrap(),
@@ -704,6 +714,13 @@ mod cluster_tests {
         assert!(!argv.contains(password), "the password reached an argv");
         assert!(!argv.contains("--from-literal"), "argv: {argv}");
         assert!(argv.contains("apply\n-f\n-\n"), "argv: {argv}");
+        // An existing database is the CloudNativePG Cluster, not the
+        // StatefulSet the old chart rendered.
+        assert!(
+            argv.contains("get\ncluster.postgresql.cnpg.io\nkubarr-db\n"),
+            "argv: {argv}"
+        );
+        assert!(!argv.contains("statefulset"), "argv: {argv}");
         // ...and in no progress line the browser or the terminal can see.
         for event in &events {
             assert!(!event.contains(password), "a progress event leaked it");
@@ -726,10 +743,10 @@ mod cluster_tests {
         let error = ensure_database_credentials(false).unwrap_err();
         install_events::clear_install_log();
         drop(rx);
-        // "No Secret and no StatefulSet" is what an unreachable cluster looks
+        // "No Secret and no database Cluster" is what an unreachable cluster looks
         // like, and it is the one answer that generates. Generating here would
         // hand PostgreSQL a password it will never accept, because it only
-        // reads POSTGRES_PASSWORD while initialising an empty data directory.
+        // sets the owner password while initialising an empty data directory.
         assert_eq!(error, CLUSTER_UNREADABLE);
         assert_eq!(
             crate::bootstrap_web::safe_failure_result_for_test(&error),

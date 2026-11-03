@@ -4,25 +4,27 @@ use std::time::{Duration, Instant};
 use crate::install_events;
 use crate::install_events::{Operation, ProgressKind};
 use crate::style::{ok, status_label, step, BLUE, CYAN};
-use crate::types::{AdminUser, BootstrapOptions, StorageModeOption, DATABASE_NAMESPACE};
-use crate::util::{external_command, run_command_with_progress};
+use crate::types::{
+    AdminUser, BootstrapOptions, StorageModeOption, DATABASE_CLUSTER, DATABASE_NAME,
+    DATABASE_NAMESPACE,
+};
+use crate::util::{command_output, external_command, run_command_with_progress};
 
-pub fn bootstrap_database(options: &BootstrapOptions) -> Result<(), String> {
+/// The setting the worker's HA reconciler compares the live node count with.
+/// Written here at install time so its first pass finds nothing to change.
+pub const HA_NODE_COUNT_SETTING: &str = "ha_node_count";
+
+pub fn bootstrap_database(options: &BootstrapOptions, node_count: u32) -> Result<(), String> {
+    let records = options.install.server_name.is_some() || options.install.admin.is_some();
     if options.install.dry_run {
-        if options.install.server_name.is_some() || options.install.admin.is_some() {
-            step(
-                "Database",
-                "would create storage/admin records directly in PostgreSQL",
-            );
-            println!(
-                "   {} kubectl exec -n {DATABASE_NAMESPACE} statefulset/kubarr-db -- psql ...",
-                status_label("plan", CYAN)
-            );
-        }
-        return Ok(());
-    }
-
-    if options.install.server_name.is_none() && options.install.admin.is_none() {
+        step(
+            "Database",
+            "would write bootstrap records directly in PostgreSQL",
+        );
+        println!(
+            "   {} kubectl exec -n {DATABASE_NAMESPACE} <{DATABASE_CLUSTER} primary pod> -- psql -U postgres -d {DATABASE_NAME} ...",
+            status_label("plan", CYAN)
+        );
         return Ok(());
     }
 
@@ -31,6 +33,15 @@ pub fn bootstrap_database(options: &BootstrapOptions) -> Result<(), String> {
         "creating bootstrap records directly in PostgreSQL",
     );
     wait_for_schema(DATABASE_NAMESPACE)?;
+    run_sql(
+        DATABASE_NAMESPACE,
+        &ha_node_count_sql(node_count),
+        Operation::NodeCountRecord,
+    )?;
+    ok("node count recorded for the HA reconciler");
+    if !records {
+        return Ok(());
+    }
     run_sql(
         DATABASE_NAMESPACE,
         &storage_sql(options),
@@ -46,6 +57,43 @@ pub fn bootstrap_database(options: &BootstrapOptions) -> Result<(), String> {
         ok("admin user created or already present");
     }
     Ok(())
+}
+
+/// The pod CloudNativePG currently runs the primary in, as `pod/<name>`.
+/// Looked up on every call: a failover moves it.
+pub fn primary_pod(namespace: &str) -> Option<String> {
+    let selector = format!("cnpg.io/cluster={DATABASE_CLUSTER},cnpg.io/instanceRole=primary");
+    command_output(
+        "kubectl",
+        &["get", "pod", "-n", namespace, "-l", &selector, "-o", "name"],
+    )
+    .and_then(|pods| pods.lines().next().map(str::to_string))
+}
+
+/// psql inside the primary pod as the local `postgres` superuser, which CNPG
+/// admits over the Unix socket without a password.
+fn psql_args(namespace: &str, pod: &str) -> Vec<String> {
+    [
+        "exec",
+        "-n",
+        namespace,
+        pod,
+        "--",
+        "psql",
+        "-U",
+        "postgres",
+        "-d",
+        DATABASE_NAME,
+    ]
+    .iter()
+    .map(|arg| arg.to_string())
+    .collect()
+}
+
+fn ha_node_count_sql(node_count: u32) -> String {
+    format!(
+        "INSERT INTO system_settings (key, value, description, updated_at) VALUES ('{HA_NODE_COUNT_SETTING}', '{node_count}', 'Schedulable node count the HA system releases were last sized for', NOW()) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();"
+    )
 }
 
 fn wait_for_schema(namespace: &str) -> Result<(), String> {
@@ -103,21 +151,14 @@ fn wait_for_schema_with(
 }
 
 fn schema_ready(namespace: &str, deadline: Instant) -> bool {
+    let Some(pod) = primary_pod(namespace) else {
+        return false;
+    };
     let mut command = external_command("kubectl");
-    command.args([
-            "exec",
-            "-n",
-            namespace,
-            "statefulset/kubarr-db",
-            "--",
-            "psql",
-            "-U",
-            "kubarr",
-            "-d",
-            "kubarr",
-            "-tAc",
-            "SELECT to_regclass('public.storage_config') IS NOT NULL AND to_regclass('public.roles') IS NOT NULL;",
-        ]);
+    command.args(psql_args(namespace, &pod)).args([
+        "-tAc",
+        "SELECT to_regclass('public.storage_config') IS NOT NULL AND to_regclass('public.roles') IS NOT NULL AND to_regclass('public.system_settings') IS NOT NULL;",
+    ]);
     schema_ready_command(command, deadline)
 }
 
@@ -135,34 +176,16 @@ fn schema_ready_command(command: std::process::Command, deadline: Instant) -> bo
 }
 
 fn run_sql(namespace: &str, sql: &str, operation: Operation) -> Result<(), String> {
-    if install_events::emit("[RUN] kubectl exec statefulset/kubarr-db -- psql") {
-        return run_sql_command(namespace, sql, operation);
+    let pod = primary_pod(namespace)
+        .ok_or("could not find the CloudNativePG primary pod of the platform database")?;
+    let line = format!("kubectl exec {pod} -- psql");
+    if !install_events::emit(format!("[RUN] {line}")) {
+        println!("   {} {line}", status_label("run", BLUE));
     }
-    println!(
-        "   {} kubectl exec statefulset/kubarr-db -- psql",
-        status_label("run", BLUE)
-    );
-    run_sql_command(namespace, sql, operation)
-}
-
-fn run_sql_command(namespace: &str, sql: &str, operation: Operation) -> Result<(), String> {
     let mut command = external_command("kubectl");
-    command.args([
-        "exec",
-        "-n",
-        namespace,
-        "statefulset/kubarr-db",
-        "--",
-        "psql",
-        "-U",
-        "kubarr",
-        "-d",
-        "kubarr",
-        "-v",
-        "ON_ERROR_STOP=1",
-        "-c",
-        sql,
-    ]);
+    command
+        .args(psql_args(namespace, &pod))
+        .args(["-v", "ON_ERROR_STOP=1", "-c", sql]);
     let status = run_command_with_progress(
         &mut command,
         "database bootstrap SQL",
@@ -250,6 +273,40 @@ fn json_escape(value: &str) -> String {
             _ => vec![ch],
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_node_count_is_upserted_into_the_settings_table_the_worker_reads() {
+        let sql = ha_node_count_sql(3);
+        assert!(sql.starts_with(
+            "INSERT INTO system_settings (key, value, description, updated_at) VALUES ('ha_node_count', '3',"
+        ));
+        assert!(sql.contains("ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value"));
+    }
+
+    #[test]
+    fn sql_runs_in_the_primary_pod_as_the_local_superuser() {
+        let args = psql_args("kubarr-database", "pod/kubarr-db-2");
+        assert_eq!(
+            args,
+            [
+                "exec",
+                "-n",
+                "kubarr-database",
+                "pod/kubarr-db-2",
+                "--",
+                "psql",
+                "-U",
+                "postgres",
+                "-d",
+                "kubarr"
+            ]
+        );
+    }
 }
 
 #[cfg(all(test, unix))]
