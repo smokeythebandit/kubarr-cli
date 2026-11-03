@@ -48,9 +48,18 @@ def container_images(value):
     """Read containers and initContainers, not unrelated 'image' configuration."""
     images = set()
     if isinstance(value, dict):
+        # CRD schemas also have "containers" keys, as OpenAPI objects.
+        if value.get("kind") == "CustomResourceDefinition":
+            return images
+        # A CloudNativePG Cluster names its PostgreSQL image outside any pod spec.
+        if value.get("kind") == "Cluster" and str(value.get("apiVersion", "")).startswith("postgresql.cnpg.io/"):
+            image = (value.get("spec") or {}).get("imageName")
+            if image:
+                images.add(image)
         for key, child in value.items():
-            if key in ("containers", "initContainers"):
-                images.update(container["image"] for container in child)
+            if key in ("containers", "initContainers") and isinstance(child, list):
+                images.update(container["image"] for container in child
+                              if isinstance(container, dict) and "image" in container)
             else:
                 images.update(container_images(child))
     elif isinstance(value, list):
