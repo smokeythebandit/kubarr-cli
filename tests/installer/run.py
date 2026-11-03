@@ -28,7 +28,8 @@ RELEASES = {
     "fluent-bit": ("fluent-bit", "daemonset/fluent-bit"),
     "victorialogs": ("victorialogs", "deployment/victorialogs"),
     "victoriametrics": ("victoriametrics", "deployment/victoriametrics"),
-    "postgresql": ("kubarr-database", "statefulset/kubarr-db"),
+    "cloudnative-pg": ("cnpg-system", "deployment/cloudnative-pg"),
+    "postgresql": ("kubarr-database", "cluster.postgresql.cnpg.io/kubarr-db"),
     "kubarr-backend": ("kubarr-backend", "deployment/kubarr-backend"),
     "kubarr-frontend": ("kubarr-frontend", "deployment/kubarr-frontend"),
     "openresty": ("openresty", "deployment/kubarr-gateway"),
@@ -368,7 +369,13 @@ class Journey:
                 if installed.get(name) != f"{name}-{version}":
                     raise RuntimeError(f"Wrong chart revision for {name}: {installed.get(name)}; expected {version}")
             for namespace, workload in RELEASES.values():
-                self.kube("-n", namespace, "rollout", "status", workload, "--timeout=30s", timeout=40)
+                if workload.startswith("cluster.postgresql.cnpg.io/"):
+                    # CloudNativePG owns its Pods directly; there is no
+                    # StatefulSet to roll out, only the Cluster's Ready condition.
+                    self.kube("-n", namespace, "wait", "--for=condition=Ready", workload,
+                              "--timeout=30s", timeout=40)
+                else:
+                    self.kube("-n", namespace, "rollout", "status", workload, "--timeout=30s", timeout=40)
             namespace = json.loads(self.kube("get", "namespace", "fluent-bit", "-o", "json"))
             if namespace["metadata"]["labels"].get("pod-security.kubernetes.io/enforce") != "privileged":
                 raise RuntimeError("Fluent Bit namespace is missing its host-log admission exception")
