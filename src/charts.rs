@@ -88,12 +88,13 @@ pub fn pinned_version(name: &str, reference: &str) -> Result<Option<&'static str
         "grafana" => "13.2.4+4",
         "node-exporter" => "1.10.2+1",
         "kubarr-flow-exporter" => "0.3.11",
-        // The first revisions whose spread skips tainted nodes; the worker's
+        // The first revisions whose spread skips tainted nodes and counts only the
+        // pod's own ReplicaSet (matchLabelKeys); the worker's
         // also carries the RBAC the HA reconciler needs.
-        "kubarr-backend" => "0.3.11+3",
-        "kubarr-frontend" => "0.3.11+2",
-        "kubarr-worker" => "0.3.11+4",
-        "openresty" => "1.29.2+5.14",
+        "kubarr-backend" => "0.3.11+4",
+        "kubarr-frontend" => "0.3.11+3",
+        "kubarr-worker" => "0.3.11+5",
+        "openresty" => "1.29.2+5.15",
         "kubarr-cilium-identities" => "1.20.4",
         _ => return Err(format!("no pinned bootstrap chart version for '{name}'")),
     };
