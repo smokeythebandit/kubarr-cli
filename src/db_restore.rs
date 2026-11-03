@@ -4,12 +4,14 @@
 //! export under `system/postgresql-backups/kubarr-<UTC timestamp>.dump`. A
 //! restore runs a one-off pod in the database namespace that mounts that same
 //! directory through the namespace's `media-data` claim and replays the newest
-//! (or a named) archive with `pg_restore --clean --if-exists`.
+//! (or a named) archive with `pg_restore --clean --if-exists`, in a single
+//! transaction that stops at the first error, so a failed restore leaves the
+//! database as it was rather than half-dropped.
 //!
-//! The backend and the worker are scaled to zero first, so nothing writes to
-//! the tables while they are dropped and recreated, and are put back to the
-//! replica counts they had afterwards -- also when the restore fails, so a
-//! failed restore never leaves the platform switched off.
+//! The worker and then the backend are scaled to zero first, so nothing writes
+//! to the tables while they are dropped and recreated, and are put back to the
+//! replica counts they had afterwards (backend first) -- also when the restore
+//! fails, so a failed restore never leaves the platform switched off.
 
 use std::process::Stdio;
 use std::thread::sleep;
@@ -28,11 +30,13 @@ const RESTORE_POD: &str = "kubarr-db-restore";
 const RESTORE_IMAGE: &str = "postgres:16.15-alpine";
 const BACKUP_SOURCE: &str = "system/postgresql-backups";
 const MEDIA_CLAIM: &str = "media-data";
-/// The Deployments that write to the database, by namespace and name. Each is
-/// selected by `app.kubernetes.io/name=<name>`.
+/// The Deployments that write to the database, by namespace and name, in the
+/// order they are stopped: the worker first, so its reconciler and operation
+/// queue are gone before the backend is touched. They restart in reverse.
+/// Each is selected by `app.kubernetes.io/name=<name>`.
 const WRITERS: &[(&str, &str)] = &[
-    (APP_NAMESPACE, "kubarr-backend"),
     (WORKER_NAMESPACE, WORKER_RELEASE),
+    (APP_NAMESPACE, "kubarr-backend"),
 ];
 /// The database's NetworkPolicy admits the backup job's pods by this label;
 /// the restore pod connects the same way.
@@ -48,7 +52,7 @@ if [ -z "$file" ] || [ ! -f "$file" ]; then
   exit 1
 fi
 echo "restoring $file"
-pg_restore --clean --if-exists -d "$DATABASE_URI" "$file"
+pg_restore --clean --if-exists --single-transaction --exit-on-error -d "$DATABASE_URI" "$file"
 "#;
 
 pub fn db(args: Vec<String>) -> Result<(), String> {
@@ -194,7 +198,7 @@ fn restore_with(
         stop_writers(&mut kubectl, poll).and_then(|()| run_restore_pod(file, &mut kubectl));
 
     let mut restart_error = None;
-    for (namespace, name, count) in &replicas {
+    for (namespace, name, count) in replicas.iter().rev() {
         if let Err(error) = kubectl(&scale_args(namespace, name, *count)) {
             restart_error.get_or_insert(error);
         }
@@ -219,9 +223,7 @@ fn stop_writers(
 ) -> Result<(), String> {
     for (namespace, name) in WRITERS {
         kubectl(&scale_args(namespace, name, 0))?;
-    }
-    // A terminating pod can still commit; wait until none is left.
-    for (namespace, name) in WRITERS {
+        // A terminating pod can still commit; wait until none is left.
         let selector = format!("app.kubernetes.io/name={name}");
         let mut remaining = 60;
         while !kubectl(&strings(&[
@@ -361,7 +363,11 @@ mod tests {
         let container = &pod["spec"]["containers"][0];
         assert_eq!(container["name"], "kubarr-db-restore");
         let script = container["command"][2].as_str().unwrap();
-        assert!(script.contains(r#"pg_restore --clean --if-exists -d "$DATABASE_URI" "$file""#));
+        // One transaction that aborts on the first error: a failed restore
+        // leaves the database as it was, never half-dropped.
+        assert!(script.contains(
+            r#"pg_restore --clean --if-exists --single-transaction --exit-on-error -d "$DATABASE_URI" "$file""#
+        ));
         // Newest first: the timestamps in the names sort chronologically.
         assert!(script.contains("ls -1 kubarr-*.dump 2>/dev/null | sort | tail -n 1"));
         assert_eq!(container["args"], serde_json::json!([]));
@@ -451,6 +457,22 @@ mod tests {
         assert!(index("delete pod kubarr-db-restore") < run);
         assert!(index("scale deployment/kubarr-backend -n kubarr-backend --replicas=3") > run);
         assert!(index("scale deployment/kubarr-worker -n kubarr-worker --replicas=2") > run);
+
+        // The worker (reconciler, operation queue) is gone before the backend
+        // is touched, and comes back only after the backend does.
+        let worker_stop = index("scale deployment/kubarr-worker -n kubarr-worker --replicas=0");
+        let worker_gone =
+            index("get pods -n kubarr-worker -l app.kubernetes.io/name=kubarr-worker");
+        let backend_stop = index("scale deployment/kubarr-backend -n kubarr-backend --replicas=0");
+        assert!(
+            worker_stop < worker_gone && worker_gone < backend_stop,
+            "{calls:#?}"
+        );
+        assert!(
+            index("scale deployment/kubarr-backend -n kubarr-backend --replicas=3")
+                < index("scale deployment/kubarr-worker -n kubarr-worker --replicas=2"),
+            "{calls:#?}"
+        );
     }
 
     #[test]
