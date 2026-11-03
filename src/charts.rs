@@ -78,10 +78,10 @@ pub fn pinned_version(name: &str, reference: &str) -> Result<Option<&'static str
     }
     let version = match name {
         "managed-nfs" => "12.0.0+6",
-        "local-path-provisioner" => "0.1.1",
-        "cloudnative-pg" => "0.1.0",
+        "local-path-provisioner" => "0.0.37+1",
+        "cloudnative-pg" => "1.30.1+1",
         // The CloudNativePG rewrite: a major bump over the StatefulSet chart.
-        "postgresql" => "17.0.0",
+        "postgresql" => "16.15.0+17",
         "fluent-bit" => "5.1.5+16",
         "victorialogs" => "1.53.0+14",
         "victoriametrics" => "1.154.1+21",
